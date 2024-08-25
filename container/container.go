@@ -2,6 +2,7 @@ package container
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -78,7 +79,7 @@ func (e Engine) Check() error {
 	return cmd.Run()
 }
 
-func (e Engine) Run(submission *model.Submission) (*model.Result, error) {
+func (e Engine) Run(ctx context.Context, name string, submission *model.Submission) (*model.Result, error) {
 	if !e.enables[submission.Type] {
 		err := fmt.Errorf("submission type \"%s\" is unsupported", submission.Type)
 		return nil, err
@@ -89,10 +90,10 @@ func (e Engine) Run(submission *model.Submission) (*model.Result, error) {
 		return nil, err
 	}
 
-	args := append(e.args, "--name", "kerat_"+submission.Id, "kerat:"+submission.Type)
+	args := append(e.args, "--name", name, "kerat:"+submission.Type)
 
 	var stdout bytes.Buffer
-	cmd := exec.Command(e.path, args...)
+	cmd := exec.CommandContext(ctx, e.path, args...)
 	cmd.Stdout = &stdout
 	cmd.Stdin = bytes.NewReader(stdin)
 	if err := cmd.Run(); err != nil {
@@ -106,4 +107,9 @@ func (e Engine) Run(submission *model.Submission) (*model.Result, error) {
 	}
 
 	return &result, nil
+}
+
+func (e Engine) Kill(id string) {
+	cmd := exec.Command(e.path, "kill", id)
+	cmd.Run()
 }

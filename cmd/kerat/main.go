@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -44,7 +46,23 @@ func main() {
 			submission.Id = util.RandomString()
 		}
 
-		result, err := engine.Run(&submission)
+		containerName := "kerat_" + submission.Id
+		ctx := c.Request().Context()
+		go func() {
+			<-ctx.Done()
+
+			if err := ctx.Err(); err != nil {
+				engine.Kill(containerName)
+
+				if errors.Is(err, context.Canceled) {
+					log.Println("canceled")
+				} else {
+					log.Printf("unknown error %s\n", err.Error())
+				}
+			}
+		}()
+
+		result, err := engine.Run(ctx, containerName, &submission)
 		if err != nil {
 			log.Println(err)
 			return c.JSON(http.StatusInternalServerError, "internal error")
