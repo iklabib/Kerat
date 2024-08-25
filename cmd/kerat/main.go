@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"codeberg.org/iklabib/kerat/container"
 	"codeberg.org/iklabib/kerat/model"
@@ -52,5 +53,10 @@ func main() {
 		return c.JSON(http.StatusOK, result)
 	})
 
-	e.Logger.Fatal(e.Start(":31415"))
+	address := ":31415"
+	if host := os.Getenv("KERAT_HOST"); host != "" {
+		address = host
+	}
+
+	e.Logger.Fatal(e.Start(address))
 }
