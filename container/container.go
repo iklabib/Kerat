@@ -6,33 +6,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"codeberg.org/iklabib/kerat/model"
 )
 
 type Engine struct {
+	runtime string
 	path    string
-	args    []string
-	enables map[string]bool
+	args    map[string]string
 }
 
-func NewEngine(config model.Config) Engine {
+func NewEngine(config model.GlobalConfig, submissionConfigs []model.SubmissionConfig) Engine {
 	e := Engine{
 		path:    config.Engine,
-		args:    buildEngineArgs(config),
-		enables: map[string]bool{},
+		runtime: config.Runtime,
+		args:    map[string]string{},
 	}
 
-	for _, v := range config.Enables {
-		e.enables[v] = true
+	for _, v := range submissionConfigs {
+		e.args[v.Id] = strings.Join(e.buildEngineArgs(v), " ")
 	}
 
 	return e
 }
 
+func (e Engine) IsSupported(id string) bool {
+	_, exist := e.args[id]
+	return exist
+}
+
 // docker run arguments based on config
 // I don't feel like to bother with Docker SDK
-func buildEngineArgs(config model.Config) []string {
+func (e Engine) buildEngineArgs(config model.SubmissionConfig) []string {
 	cpus := fmt.Sprintf("%.2f", config.Cpus)
 	maxMemory := fmt.Sprintf("%dM", config.MaxMemory)
 	maxSwap := fmt.Sprintf("%dM", config.MaxSwap)
@@ -59,8 +65,8 @@ func buildEngineArgs(config model.Config) []string {
 		"STDERR",
 	}
 
-	if config.Runtime != "" {
-		args = append(args, "--runtime", config.Runtime)
+	if e.runtime != "" {
+		args = append(args, "--runtime", e.runtime)
 	}
 
 	if config.Privileged {
@@ -79,18 +85,13 @@ func (e Engine) Check() error {
 	return cmd.Run()
 }
 
-func (e Engine) Run(ctx context.Context, name string, submission *model.Submission) (*model.Result, error) {
-	if !e.enables[submission.Type] {
-		err := fmt.Errorf("submission type \"%s\" is unsupported", submission.Type)
-		return nil, err
-	}
-
+func (e Engine) Run(ctx context.Context, containerName string, submission *model.Submission) (*model.Result, error) {
 	stdin, err := json.Marshal(submission)
 	if err != nil {
 		return nil, err
 	}
 
-	args := append(e.args, "--name", name, "kerat:"+submission.Type)
+	args := []string{e.args[submission.Type], "--name", containerName, "kerat:" + submission.Type}
 
 	var stdout bytes.Buffer
 	cmd := exec.CommandContext(ctx, e.path, args...)

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,10 +11,12 @@ import (
 	"codeberg.org/iklabib/kerat/model"
 	"codeberg.org/iklabib/kerat/util"
 	"github.com/labstack/echo/v4"
+	gonanoid "github.com/matoous/go-nanoid/v2"
+	"golang.org/x/net/context"
 )
 
 func main() {
-	config, err := util.LoadConfig("config.yaml")
+	config, err := util.LoadGlobalConfig("config.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,13 +27,26 @@ func main() {
 		log.Fatalln("runsc is unsupported")
 	}
 
-	engine := container.NewEngine(*config)
+	if config.QueueCap < 0 {
+		log.Fatalln("queue cap must be greater than zero")
+	}
+
+	queue := make(chan string, config.QueueCap)
+	submissionConfigs, err := util.LoadSubmissionConfigs("configs", config.Enables)
+
+	engine := container.NewEngine(*config, submissionConfigs)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if err := engine.Check(); err != nil {
 		log.Fatal(err)
+	}
+
+	if err != nil {
+		log.Fatalf("load submission configs error: %s\n", err.Error())
+	} else if len(submissionConfigs) == 0 {
+		log.Fatalln("no config loaded")
 	}
 
 	e := echo.New()
@@ -42,33 +57,43 @@ func main() {
 			return c.JSON(http.StatusBadRequest, "bad request")
 		}
 
-		if submission.Id == "" {
-			submission.Id = util.RandomString()
-		}
-
-		containerName := "kerat_" + submission.Id
-		ctx := c.Request().Context()
-		go func() {
-			<-ctx.Done()
-
-			if err := ctx.Err(); err != nil {
-				engine.Kill(containerName)
-
-				if errors.Is(err, context.Canceled) {
-					log.Println("canceled")
-				} else {
-					log.Printf("unknown error %s\n", err.Error())
-				}
-			}
-		}()
-
-		result, err := engine.Run(ctx, containerName, &submission)
+		submissionId, err := gonanoid.New(8)
 		if err != nil {
-			log.Println(err)
-			return c.JSON(http.StatusInternalServerError, "internal error")
+			return c.JSON(http.StatusInternalServerError, "internal server error")
 		}
 
-		return c.JSON(http.StatusOK, result)
+		IsSupported := engine.IsSupported(submission.Type)
+		if !IsSupported {
+			msg := fmt.Sprintf("bad request: submission type \"%s\" is unsupported", submission.Type)
+			log.Printf("[%s] %s\n", submissionId, msg)
+			return c.JSON(http.StatusBadRequest, msg)
+		}
+
+		ctx := c.Request().Context()
+
+		select {
+		case queue <- submissionId:
+			defer func() {
+				<-queue
+			}()
+
+			containerName := "kerat_" + submissionId
+			result, err := engine.Run(ctx, containerName, &submission)
+			if err != nil {
+				log.Printf("[%s] %s\n", submissionId, ctx.Err())
+				return c.JSON(http.StatusInternalServerError, "internal server error")
+			}
+
+			return c.JSON(http.StatusOK, result)
+
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return c.JSON(499, "request canceled")
+			} else { // ideally this should not happened
+				log.Printf("[%s] %s\n", submissionId, ctx.Err().Error())
+				return c.JSON(http.StatusInternalServerError, "internal server error")
+			}
+		}
 	})
 
 	address := ":31415"

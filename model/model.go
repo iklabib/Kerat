@@ -6,7 +6,6 @@ import (
 )
 
 type Submission struct {
-	Id             string       `json:"id"`
 	Type           string       `json:"type"`
 	SourceCodeTest string       `json:"src_test"`
 	SourceFiles    []SourceFile `json:"src"`
@@ -45,15 +44,20 @@ type Result struct {
 	Metric  Metrics `json:"metric"`
 }
 
-type Config struct {
+type SubmissionConfig struct {
+	Id         string         `json:"id" yaml:"cpus"`
 	Cpus       float64        `json:"cpus" yaml:"cpus"`
 	MaxPids    int            `json:"max_pids" yaml:"max_pids"`
 	MaxSwap    int            `json:"max_swap" yaml:"max_swap"`     // MiB
 	MaxMemory  int            `json:"max_memory" yaml:"max_memory"` // MiB
+	Timeout    int            `json:"timeout" yaml:"timeout"`       // wall-time in seconds
 	Privileged bool           `json:"privileged" yaml:"privileged"`
-	Runtime    string         `json:"runtime" yaml:"runtime"`
 	Ulimits    map[string]int `json:"ulimits" yaml:"ulimits"`
-	Enables    []string       `json:"enables" yaml:"enables"`
-	Timeout    int            `json:"timeout" yaml:"timeout"` // wall-time in seconds
-	Engine     string         `json:"engine" yaml:"engine"`
+}
+
+type GlobalConfig struct {
+	QueueCap int      `json:"queue_cap" yaml:"queue_cap"`
+	Enables  []string `json:"enables" yaml:"enables"`
+	Engine   string   `json:"engine" yaml:"engine"`
+	Runtime  string   `json:"runtime" yaml:"runtime"`
 }
