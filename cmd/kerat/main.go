@@ -21,12 +21,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// https://github.com/google/gvisor/issues/190
-	// so we should fail it for now
-	if config.Runtime == "runsc" {
-		log.Fatalln("runsc is unsupported")
-	}
-
 	if config.QueueCap < 0 {
 		log.Fatalln("queue cap must be greater than zero")
 	}
