@@ -45,7 +45,7 @@ type Result struct {
 }
 
 type SubmissionConfig struct {
-	Id         string         `json:"id" yaml:"cpus"`
+	Id         string         `json:"id" yaml:"id"`
 	Cpus       float64        `json:"cpus" yaml:"cpus"`
 	MaxPids    int            `json:"max_pids" yaml:"max_pids"`
 	MaxSwap    int            `json:"max_swap" yaml:"max_swap"`     // MiB
