@@ -1,5 +1,19 @@
-runtime: "crun"
-engine: "podman"
+engine: docker
+runtime: runsc
 queue_cap: 24
-enables:
-  - csharp
+submission_configs:
+  - id: csharp
+    cpu_period: 100000
+    cpu_quota: 150000
+    max_pids: 256
+    max_swap: 0
+    max_memory: 64
+    timeout: 15
+
+  - id: python
+    cpu_period: 100000
+    cpu_quota: 150000
+    max_pids: 256
+    max_swap: 0
+    max_memory: 64
+    timeout: 15
