@@ -1,7 +1,7 @@
-FROM golang:1.23.0-alpine3.20 AS build
+FROM golang:1.23.2-alpine3.20 AS build
 WORKDIR /build
 COPY . .
-RUN go build -o evaluator cmd/eval/main.go
+RUN go build -ldflags "-s -w" -o evaluator cmd/eval/main.go
 
 FROM alpine:3.20
 RUN adduser -u 1000 -D user user

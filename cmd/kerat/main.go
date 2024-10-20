@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	config, err := util.LoadGlobalConfig("config.yaml")
+	config, err := util.LoadConfig("config.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -26,21 +26,14 @@ func main() {
 	}
 
 	queue := make(chan string, config.QueueCap)
-	submissionConfigs, err := util.LoadSubmissionConfigs("configs", config.Enables)
 
-	engine := container.NewEngine(*config, submissionConfigs)
+	engine, err := container.NewEngine(*config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if err := engine.Check(); err != nil {
 		log.Fatal(err)
-	}
-
-	if err != nil {
-		log.Fatalf("load submission configs error: %s\n", err.Error())
-	} else if len(submissionConfigs) == 0 {
-		log.Fatalln("no config loaded")
 	}
 
 	e := echo.New()
@@ -56,8 +49,7 @@ func main() {
 			return c.JSON(http.StatusInternalServerError, "internal server error")
 		}
 
-		IsSupported := engine.IsSupported(submission.Type)
-		if !IsSupported {
+		if !engine.IsSupported(submission.Type) {
 			msg := fmt.Sprintf("bad request: submission type \"%s\" is unsupported", submission.Type)
 			log.Printf("[%s] %s\n", submissionId, msg)
 			return c.JSON(http.StatusBadRequest, msg)
@@ -74,7 +66,13 @@ func main() {
 			containerName := "kerat_" + submissionId
 			result, err := engine.Run(ctx, containerName, &submission)
 			if err != nil {
-				log.Printf("[%s] %s\n", submissionId, ctx.Err())
+				log.Printf("[%s] %s\n", submissionId, err.Error())
+				return c.JSON(http.StatusInternalServerError, "internal server error")
+			}
+
+			// TODO: don't remove container that has compile error. We want to reuse them
+			if err := engine.Remove(containerName); err != nil {
+				log.Printf("[%s] %s\n", submissionId, err.Error())
 				return c.JSON(http.StatusInternalServerError, "internal server error")
 			}
 

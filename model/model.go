@@ -13,7 +13,6 @@ type Submission struct {
 
 type SourceFile struct {
 	Filename   string `json:"filename"`
-	Path       string `json:"path,omitempty"`
 	SourceCode string `json:"src"`
 }
 
@@ -45,19 +44,19 @@ type Result struct {
 }
 
 type SubmissionConfig struct {
-	Id         string         `json:"id" yaml:"id"`
-	Cpus       float64        `json:"cpus" yaml:"cpus"`
-	MaxPids    int            `json:"max_pids" yaml:"max_pids"`
-	MaxSwap    int            `json:"max_swap" yaml:"max_swap"`     // MiB
-	MaxMemory  int            `json:"max_memory" yaml:"max_memory"` // MiB
-	Timeout    int            `json:"timeout" yaml:"timeout"`       // wall-time in seconds
-	Privileged bool           `json:"privileged" yaml:"privileged"`
-	Ulimits    map[string]int `json:"ulimits" yaml:"ulimits"`
+	Id        string           `json:"id" yaml:"id"`
+	CPUPeriod int64            `json:"cpu_period" yaml:"cpu_period"`
+	CPUQuota  int64            `json:"cpu_quota" yaml:"cpu_quota"`
+	MaxPids   int64            `json:"max_pids" yaml:"max_pids"`
+	MaxSwap   int64            `json:"max_swap" yaml:"max_swap"`     // MiB
+	MaxMemory int64            `json:"max_memory" yaml:"max_memory"` // MiB
+	Timeout   int              `json:"timeout" yaml:"timeout"`       // wall-time in seconds
+	Ulimits   map[string]int64 `json:"ulimits" yaml:"ulimits"`
 }
 
-type GlobalConfig struct {
-	QueueCap int      `json:"queue_cap" yaml:"queue_cap"`
-	Enables  []string `json:"enables" yaml:"enables"`
-	Engine   string   `json:"engine" yaml:"engine"`
-	Runtime  string   `json:"runtime" yaml:"runtime"`
+type Config struct {
+	QueueCap          int                `json:"queue_cap" yaml:"queue_cap"`
+	Engine            string             `json:"engine" yaml:"engine"`
+	Runtime           string             `json:"runtime" yaml:"runtime"`
+	SubmissionConfigs []SubmissionConfig `json:"submission_configs" yaml:"submission_configs"`
 }
