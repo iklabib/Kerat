@@ -1,0 +1,2 @@
+# Motivation
+I was unwilling to setup sandbox that requires me to make seccomp profile. I am barely have any motivation to live and the world is looking bleak, so I just slapped gvisor to container and call it a sandbox. 
