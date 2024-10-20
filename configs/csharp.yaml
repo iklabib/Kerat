@@ -1,7 +1,0 @@
-id: csharp
-cpus: 0.25
-max_pids: 128
-max_swap: 0
-max_memory: 64
-privileged: false
-timeout: 15
