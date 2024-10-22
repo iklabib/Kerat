@@ -81,15 +81,21 @@ func main() {
 		}
 	}
 
-	if !procState.Exited() {
-		wt := procState.Sys().(syscall.WaitStatus)
-		if wt.Signaled() {
-			metrics.Signal = wt.Signal()
-		}
-	}
-
 	marshaled, _ := json.Marshal(result)
 	fmt.Println(string(marshaled))
+}
+
+func GetSignal(procState *os.ProcessState) (os.Signal, bool) {
+	if procState.Exited() {
+		return syscall.Signal(0), false
+	}
+
+	wt := procState.Sys().(syscall.WaitStatus)
+	if wt.Signaled() {
+		return wt.Signal(), true
+	}
+
+	return syscall.Signal(0), false
 }
 
 func Exit(message string) {

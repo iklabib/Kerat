@@ -1,7 +1,6 @@
 package model
 
 import (
-	"os"
 	"time"
 )
 
@@ -28,7 +27,6 @@ type SourceCode struct {
 }
 
 type Metrics struct {
-	Signal   os.Signal     `json:"signal"`
 	ExitCode int           `json:"exit_code"`
 	SysTime  time.Duration `json:"sys_time"`
 	UserTime time.Duration `json:"time"`
