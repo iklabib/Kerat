@@ -64,7 +64,7 @@ func main() {
 			}()
 
 			containerName := "kerat_" + submissionId
-			result, err := engine.Run(ctx, containerName, &submission)
+			result, err := engine.Run(ctx, &submission)
 			if err != nil {
 				log.Printf("[%s] %s\n", submissionId, err.Error())
 				return c.JSON(http.StatusInternalServerError, "internal server error")

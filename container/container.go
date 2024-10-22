@@ -95,7 +95,7 @@ func (e *Engine) Check() error {
 	return err
 }
 
-func (e *Engine) Run(ctx context.Context, containerName string, submission *model.Submission) (*model.Result, error) {
+func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.Result, error) {
 	submissionConfig := e.submissionConfigs[submission.Type]
 	hostConfig := e.buildHostConfig(submission.Type)
 
@@ -109,12 +109,12 @@ func (e *Engine) Run(ctx context.Context, containerName string, submission *mode
 		Env:             []string{fmt.Sprintf("TIMEOUT=%d", submissionConfig.Timeout)},
 	}
 
-	resp, err := e.client.ContainerCreate(ctx, &containerConfig, &hostConfig, nil, nil, containerName)
+	resp, err := e.client.ContainerCreate(ctx, &containerConfig, &hostConfig, nil, nil, "")
 	if err != nil {
 		return nil, fmt.Errorf("error create container: %w", err)
 	}
 
-	if err := e.client.ContainerStart(ctx, containerName, container.StartOptions{}); err != nil {
+	if err := e.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return nil, fmt.Errorf("error start container: %w", err)
 	}
 
