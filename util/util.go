@@ -1,9 +1,7 @@
 package util
 
 import (
-	"math/rand"
 	"os"
-	"strconv"
 	"unicode"
 
 	"codeberg.org/iklabib/kerat/model"
@@ -22,12 +20,6 @@ func LoadConfig(configPath string) (*model.Config, error) {
 	}
 
 	return &config, nil
-}
-
-var randomizer = rand.New(rand.NewSource(10))
-
-func RandomString() string {
-	return strconv.Itoa(randomizer.Intn(6))
 }
 
 // remove non-printable characters while keeping whitespaces
