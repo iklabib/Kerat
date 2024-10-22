@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 
 	"codeberg.org/iklabib/kerat/model"
 	"codeberg.org/iklabib/kerat/util"
@@ -172,7 +173,17 @@ func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshal result: %w", err)
 	}
+
+	go e.removeInBackground(resp.ID)
+
 	return &result, nil
+}
+
+func (e *Engine) removeInBackground(id string) {
+	err := e.Remove(id)
+	if err != nil {
+		log.Printf("failed to remove container %s: %s\n", id, err.Error())
+	}
 }
 
 func (e *Engine) Remove(id string) error {
