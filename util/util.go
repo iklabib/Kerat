@@ -30,7 +30,23 @@ func RandomString() string {
 	return strconv.Itoa(randomizer.Intn(6))
 }
 
+// remove non-printable characters while keeping whitespaces
 func SanitizeStdout(input []byte) []byte {
+	var result []byte
+	for _, ch := range input {
+		r := rune(ch)
+		if !unicode.IsSpace(r) && !unicode.IsPrint(r) {
+			continue
+		}
+
+		result = append(result, ch)
+	}
+	return result
+}
+
+// clean from start until printable character found
+// clean from end until printable character found
+func CleanJson(input []byte) []byte {
 	start := 0
 	for start < len(input) && unicode.IsControl(rune(input[start])) {
 		start++

@@ -1,7 +1,6 @@
 package container
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -101,18 +100,16 @@ func (e *Engine) Run(ctx context.Context, containerName string, submission *mode
 	hostConfig := e.buildHostConfig(submission.Type)
 
 	var containerConfig = container.Config{
-		Hostname:     "box",
-		Domainname:   "box",
-		Tty:          false,
-		OpenStdin:    true,
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Image:        "kerat:" + submission.Type,
-		Env:          []string{fmt.Sprintf("TIMEOUT=%d", submissionConfig.Timeout)},
+		Hostname:        "box",
+		Domainname:      "box",
+		OpenStdin:       true,
+		StdinOnce:       true,
+		NetworkDisabled: true,
+		Image:           "kerat:" + submission.Type,
+		Env:             []string{fmt.Sprintf("TIMEOUT=%d", submissionConfig.Timeout)},
 	}
 
-	_, err := e.client.ContainerCreate(ctx, &containerConfig, &hostConfig, nil, nil, containerName)
+	resp, err := e.client.ContainerCreate(ctx, &containerConfig, &hostConfig, nil, nil, containerName)
 	if err != nil {
 		return nil, fmt.Errorf("error create container: %w", err)
 	}
@@ -121,7 +118,7 @@ func (e *Engine) Run(ctx context.Context, containerName string, submission *mode
 		return nil, fmt.Errorf("error start container: %w", err)
 	}
 
-	hijackedResponse, err := e.client.ContainerAttach(ctx, containerName, container.AttachOptions{
+	hijackedResponse, err := e.client.ContainerAttach(ctx, resp.ID, container.AttachOptions{
 		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
@@ -136,18 +133,19 @@ func (e *Engine) Run(ctx context.Context, containerName string, submission *mode
 		SourceCodeTest: submission.SourceCodeTest,
 		SourceCodes:    submission.SourceFiles,
 	}
+
 	stdin, err := json.Marshal(sources)
 	if err != nil {
 		return nil, fmt.Errorf("error marshal submission: %w", err)
 	}
 
-	_, err = hijackedResponse.Conn.Write(stdin)
+	_, err = hijackedResponse.Conn.Write(append(stdin, '\n'))
 	if err != nil {
 		return nil, fmt.Errorf("error write stdin: %w", err)
 	}
 	hijackedResponse.CloseWrite()
 
-	statusCh, errCh := e.client.ContainerWait(ctx, containerName, container.WaitConditionNotRunning)
+	statusCh, errCh := e.client.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -156,13 +154,18 @@ func (e *Engine) Run(ctx context.Context, containerName string, submission *mode
 	case <-statusCh:
 	}
 
-	output := bytes.Buffer{}
-	if _, err := io.Copy(&output, hijackedResponse.Reader); err != nil {
-		return nil, fmt.Errorf("error read output: %w", err)
+	out, err := e.client.ContainerLogs(ctx, resp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
+	if err != nil {
+		panic(err)
+	}
+
+	output, err := io.ReadAll(out)
+	if err != nil {
+		return nil, fmt.Errorf("error reading container output: %w", err)
 	}
 
 	// we got control charachters mixed in stdout
-	cleanOutput := util.SanitizeStdout(output.Bytes())
+	cleanOutput := util.SanitizeStdout(output)
 
 	var result model.Result
 	err = json.Unmarshal(cleanOutput, &result)
