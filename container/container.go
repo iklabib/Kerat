@@ -152,12 +152,17 @@ func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.
 		if err != nil {
 			return nil, fmt.Errorf("error waiting for container: %w", err)
 		}
-	case <-statusCh:
+	case containerStat := <-statusCh:
+		if containerStat.Error != nil {
+			log.Printf("container %s exited with status code %d error message: %s", resp.ID, containerStat.StatusCode, containerStat.Error.Message)
+		} else if containerStat.StatusCode != 0 {
+			log.Printf("container %s exited with status code %d", resp.ID, containerStat.StatusCode)
+		}
 	}
 
 	out, err := e.client.ContainerLogs(ctx, resp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
 	if err != nil {
-		panic(err)
+		log.Printf("error container logging %s", resp.ID)
 	}
 
 	output, err := io.ReadAll(out)
