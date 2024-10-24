@@ -32,7 +32,10 @@ Copy `runsc-uds` to your`/etc/docker/daemon.json` and reload docker `sudo system
 ```shell
 $ git pull https://github.com/iklabib/Kerat.git
 # sorry, no public image yet, so you have to build it yourself
-$ docker build . -t kerat:collections -f containerfiles/collections.Dockerfile
-$ docker run --runtime=runsc-uds -p 3145:3145 -v /var/run/docker.sock:/var/run/docker.sock -v /app/config.yaml:./config.yaml -it kerat:engine
+$ docker build . -t kerat:engine
+$ docker run --runtime=runsc-uds -p 3145:3145 \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    --mount type=bind,source="$(pwd)"/config.yaml,target=/app/config.yaml \
+    -it kerat:engine
 ```
 If you don't have Linux machine and just want to test things out, remove `runtime` from `config.yaml` to fallback to Docker's default runtime.
