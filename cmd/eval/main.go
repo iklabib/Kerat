@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -16,10 +17,6 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		Exit("arguments not provided")
-	}
-
 	v, ok := os.LookupEnv("TIMEOUT")
 	if !ok {
 		Exit("env timeout not defined")
@@ -30,21 +27,29 @@ func main() {
 		Exit("failed to parse env timeout")
 	}
 
+	bin, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		Exit("failed to read stdin")
+	}
+
+	if err := os.WriteFile("Main", bin, 0555); err != nil {
+		Exit("failed to write binary to file")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	executable := os.Args[1]
-	args := os.Args[2:]
-	cmd := exec.CommandContext(ctx, executable, args...)
+	executable := "./Main"
+	cmd := exec.CommandContext(ctx, executable)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Stdin = os.Stdin
 
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
-		Exit("failed to start")
+		msg := fmt.Sprintf("failed to start: %s", err.Error())
+		Exit(msg)
 	}
 
 	cmd.Wait()
@@ -99,7 +104,7 @@ func GetSignal(procState *os.ProcessState) (os.Signal, bool) {
 }
 
 func Exit(message string) {
-	result := model.Result{Message: message}
+	result := model.RunResult{Message: message}
 	content, _ := json.Marshal(result)
 	fmt.Println(string(content))
 	os.Exit(0)
