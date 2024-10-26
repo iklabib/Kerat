@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"codeberg.org/iklabib/kerat/container"
 	"codeberg.org/iklabib/kerat/model"
+	"codeberg.org/iklabib/kerat/toolchains"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -55,7 +57,56 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 			<-s.queue
 		}()
 
-		result, err := s.engine.Run(r.Context(), &submission)
+		tc, err := toolchains.NewToolchain(submission.Type)
+		if err != nil {
+			log.Printf("[%s] %s\n", submissionId, err.Error())
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		source := model.SourceCode{
+			SourceCodeTest: submission.SourceCodeTest,
+			SourceCodes:    submission.SourceFiles,
+		}
+
+		workdir, err := os.MkdirTemp("", "box_")
+		if err != nil {
+			log.Printf("[%s] error to create temp dir: %s\n", submissionId, err.Error())
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if err := tc.PreBuild(workdir, source); err != nil {
+			log.Printf("[%s] prebuild error: %s\n", submissionId, err.Error())
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// FIXME: make sure filenames are not full path
+		var files []string
+		for _, v := range source.SourceCodes {
+			files = append(files, v.Filename)
+		}
+
+		build, err := tc.Build(workdir, files)
+		if err != nil {
+			log.Printf("[%s] build error: %s\n", submissionId, err.Error())
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if !build.Success {
+			w.Header().Set("Content-Type", "application/json")
+			ret := struct {
+				Success bool   `json:"success"`
+				Output  string `json:"output"`
+			}{}
+			json.NewEncoder(w).Encode(ret)
+			return
+		}
+
+		// TODO: we could have internal error when running in seperate container, make the system error distinctive
+		result, err := s.engine.Run(r.Context(), model.RunPayload{Type: submission.Type, Bin: build.Bin})
 		if err != nil {
 			log.Printf("[%s] %s\n", submissionId, err.Error())
 			http.Error(w, "internal server error", http.StatusInternalServerError)

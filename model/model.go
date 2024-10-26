@@ -21,6 +21,24 @@ type BuildError struct {
 	Line     int    `json:"line"`
 }
 
+type Build struct {
+	Success bool
+	Bin     []byte
+	BinName string
+	Stderr  string
+}
+
+type RunPayload struct {
+	Type string
+	Bin  []byte
+}
+
+type RunResult struct {
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+	Output  string `json:"output"`
+}
+
 type SourceCode struct {
 	SourceCodeTest string       `json:"src_test"`
 	SourceCodes    []SourceFile `json:"src"`

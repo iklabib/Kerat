@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -96,9 +95,9 @@ func (e *Engine) Check() error {
 	return err
 }
 
-func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.Result, error) {
-	submissionConfig := e.submissionConfigs[submission.Type]
-	hostConfig := e.buildHostConfig(submission.Type)
+func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.RunResult, error) {
+	submissionConfig := e.submissionConfigs[runPayload.Type]
+	hostConfig := e.buildHostConfig(runPayload.Type)
 
 	var containerConfig = container.Config{
 		Hostname:        "box",
@@ -106,7 +105,7 @@ func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.
 		OpenStdin:       true,
 		StdinOnce:       true,
 		NetworkDisabled: true,
-		Image:           "kerat:" + submission.Type,
+		Image:           "kerat:box",
 		Env:             []string{fmt.Sprintf("TIMEOUT=%d", submissionConfig.Timeout)},
 	}
 
@@ -119,6 +118,7 @@ func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.
 		return nil, fmt.Errorf("error start container: %w", err)
 	}
 
+	// TODO: container might in condition of not running after this point, check before hijack
 	hijackedResponse, err := e.client.ContainerAttach(ctx, resp.ID, container.AttachOptions{
 		Stdin:  true,
 		Stdout: true,
@@ -130,17 +130,7 @@ func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.
 		return nil, fmt.Errorf("error to attach to container: %w", err)
 	}
 
-	sources := model.SourceCode{
-		SourceCodeTest: submission.SourceCodeTest,
-		SourceCodes:    submission.SourceFiles,
-	}
-
-	stdin, err := json.Marshal(sources)
-	if err != nil {
-		return nil, fmt.Errorf("error marshal submission: %w", err)
-	}
-
-	_, err = hijackedResponse.Conn.Write(append(stdin, '\n'))
+	_, err = hijackedResponse.Conn.Write(append(runPayload.Bin, '\n'))
 	if err != nil {
 		return nil, fmt.Errorf("error write stdin: %w", err)
 	}
@@ -154,15 +144,15 @@ func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.
 		}
 	case containerStat := <-statusCh:
 		if containerStat.Error != nil {
-			log.Printf("container %s exited with status code %d error message: %s", resp.ID, containerStat.StatusCode, containerStat.Error.Message)
+			return nil, fmt.Errorf("container %s exited with status code %d error message: %s", resp.ID, containerStat.StatusCode, containerStat.Error.Message)
 		} else if containerStat.StatusCode != 0 {
-			log.Printf("container %s exited with status code %d", resp.ID, containerStat.StatusCode)
+			return nil, fmt.Errorf("container %s exited with status code %d", resp.ID, containerStat.StatusCode)
 		}
 	}
 
-	out, err := e.client.ContainerLogs(ctx, resp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
+	out, err := e.client.ContainerLogs(ctx, resp.ID, container.LogsOptions{ShowStdout: true})
 	if err != nil {
-		log.Printf("error container logging %s", resp.ID)
+		return nil, fmt.Errorf("error container logging %s", resp.ID)
 	}
 
 	output, err := io.ReadAll(out)
@@ -170,13 +160,9 @@ func (e *Engine) Run(ctx context.Context, submission *model.Submission) (*model.
 		return nil, fmt.Errorf("error reading container output: %w", err)
 	}
 
-	// we got control charachters mixed in stdout
-	cleanOutput := util.SanitizeStdout(output)
-
-	var result model.Result
-	err = json.Unmarshal(cleanOutput, &result)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshal result: %w", err)
+	result := model.RunResult{
+		Success: true,
+		Output:  string(util.SanitizeStdout(output)),
 	}
 
 	go e.removeInBackground(resp.ID)
