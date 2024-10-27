@@ -55,7 +55,8 @@ func LoadBox(workdir string, submission model.Submission) (*Box, error) {
 }
 
 func (box *Box) Prep() error {
-	for _, v := range box.source.Src {
+	sources := append(box.source.Src, box.source.SrcTest...)
+	for _, v := range sources {
 		filePath := filepath.Join(box.workdir, v.Filename)
 		err := os.WriteFile(filePath, []byte(v.SourceCode), 0755)
 		if err != nil {

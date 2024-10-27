@@ -91,20 +91,26 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 		if !build.Success {
 			w.Header().Set("Content-Type", "application/json")
-			ret := struct {
-				Success bool   `json:"success"`
-				Output  string `json:"output"`
-			}{}
+			ret := model.RunResult{Output: build.Stderr}
 			json.NewEncoder(w).Encode(ret)
 			return
 		}
 
 		// TODO: we could have internal error when running in seperate container, make the system error distinctive
-		result, err := s.engine.Run(r.Context(), model.RunPayload{Type: submission.Type, Bin: build.Bin})
+		ret, err := s.engine.Run(r.Context(), model.RunPayload{Type: submission.Type, Bin: build.Bin})
 		if err != nil {
 			log.Printf("[%s] %s\n", submissionId, err.Error())
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
+		}
+
+		if !ret.Success {
+			log.Printf("[%s] %s\n", submissionId, ret.Message)
+		}
+
+		result := model.RunResult{
+			Success: ret.Success,
+			Output:  ret.Output,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

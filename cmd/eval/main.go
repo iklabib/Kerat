@@ -41,12 +41,10 @@ func main() {
 
 	executable := "./Main"
 	cmd := exec.CommandContext(ctx, executable)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
 
-	start := time.Now()
 	if err := cmd.Start(); err != nil {
 		msg := fmt.Sprintf("failed to start: %s", err.Error())
 		Exit(msg)
@@ -54,29 +52,14 @@ func main() {
 
 	cmd.Wait()
 
-	wallTime := time.Since(start)
-
 	procState := cmd.ProcessState
-	usage, ok := procState.SysUsage().(*syscall.Rusage)
-	if !ok {
-		Exit("failed to get usage")
-	}
-
-	metrics := model.Metrics{
-		WallTime: wallTime,
-		ExitCode: procState.ExitCode(),
-		UserTime: time.Duration(usage.Utime.Nano()), // ns
-		SysTime:  time.Duration(usage.Stime.Nano()), // ns
-		Memory:   usage.Maxrss,                      // kb
-	}
-
-	result := model.Result{
-		Metric: metrics,
-		Stdout: stdout.String(),
-		Stderr: stderr.String(),
+	result := model.Run{
+		Success: procState.Success(),
+		Output:  output.String(),
 	}
 
 	if err := ctx.Err(); err != nil {
+		result.Success = false
 		if errors.Is(err, context.DeadlineExceeded) {
 			result.Message = "time limit exceeded"
 		} else if errors.Is(err, context.Canceled) {
@@ -104,8 +87,20 @@ func GetSignal(procState *os.ProcessState) (os.Signal, bool) {
 }
 
 func Exit(message string) {
-	result := model.RunResult{Message: message}
+	result := model.Run{Message: message}
 	content, _ := json.Marshal(result)
 	fmt.Println(string(content))
 	os.Exit(0)
+}
+
+func Matrics(wallTime time.Duration, exitCode int, usage *syscall.Rusage) model.Metrics {
+	metrics := model.Metrics{
+		WallTime: wallTime,
+		ExitCode: exitCode,
+		UserTime: time.Duration(usage.Utime.Nano()), // ns
+		SysTime:  time.Duration(usage.Stime.Nano()), // ns
+		Memory:   usage.Maxrss,                      // kb
+	}
+
+	return metrics
 }

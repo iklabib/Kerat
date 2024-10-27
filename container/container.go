@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -95,7 +96,7 @@ func (e *Engine) Check() error {
 	return err
 }
 
-func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.RunResult, error) {
+func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.Run, error) {
 	submissionConfig := e.submissionConfigs[runPayload.Type]
 	hostConfig := e.buildHostConfig(runPayload.Type)
 
@@ -162,9 +163,10 @@ func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.R
 
 	// I think that hijackedResponse sending control characters to container
 	// so we got those in stdout, sanitize the output
-	result := model.RunResult{
-		Success: true,
-		Output:  string(util.SanitizeStdout(output)),
+	result := model.Run{}
+	err = json.Unmarshal(util.SanitizeStdout(output), &result)
+	if err != nil {
+		return nil, err
 	}
 
 	go e.removeInBackground(resp.ID)

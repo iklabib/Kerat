@@ -37,8 +37,13 @@ type RunPayload struct {
 	Bin  []byte
 }
 
-type RunResult struct {
+type Run struct {
 	Message string `json:"message"`
+	Success bool   `json:"success"`
+	Output  string `json:"output"`
+}
+
+type RunResult struct {
 	Success bool   `json:"success"`
 	Output  string `json:"output"`
 }
@@ -49,13 +54,6 @@ type Metrics struct {
 	UserTime time.Duration `json:"time"`
 	WallTime time.Duration `json:"wall_time"`
 	Memory   int64         `json:"memory"`
-}
-
-type Result struct {
-	Stdout  string  `json:"stdout"`
-	Stderr  string  `json:"stderr"`
-	Message string  `json:"message"`
-	Metric  Metrics `json:"metric"`
 }
 
 type SubmissionConfig struct {
