@@ -27,23 +27,9 @@ func NewKotlin() (*Kotlin, error) {
 	return kt, nil
 }
 
-func (k Kotlin) PreBuild(workdir string, source model.SourceCode) error {
-	// TODO: make sure source code filename as relative path
-	for _, v := range source.SourceCodes {
-		filePath := filepath.Join(workdir, v.Filename)
-		err := os.WriteFile(filePath, []byte(v.SourceCode), 0755)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (k Kotlin) Build(workdir string, files []string) (model.Build, error) {
 	stderr := bytes.Buffer{}
 
-	// FIXME: either you iterate the whole directory and find all *.kt, cause go exec not expanding wildcard
-	// FIXME: static build until I can figure out this lib loading errors
 	args := []string{"-nowarn", "-o", "Main"}
 	cmd := exec.Command(k.binPath)
 	cmd.Args = append(args, files...)
@@ -93,4 +79,8 @@ func (k Kotlin) Build(workdir string, files []string) (model.Build, error) {
 	}
 
 	return build, nil
+}
+
+func (k Kotlin) Clean(workdir string) error {
+	return os.RemoveAll(workdir)
 }

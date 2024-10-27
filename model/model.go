@@ -5,9 +5,13 @@ import (
 )
 
 type Submission struct {
-	Type           string       `json:"type"`
-	SourceCodeTest string       `json:"src_test"`
-	SourceFiles    []SourceFile `json:"src"`
+	Type   string     `json:"type"`
+	Source SourceCode `json:"source"`
+}
+
+type SourceCode struct {
+	SrcTest []SourceFile `json:"src_test"`
+	Src     []SourceFile `json:"src"`
 }
 
 type SourceFile struct {
@@ -37,11 +41,6 @@ type RunResult struct {
 	Message string `json:"message"`
 	Success bool   `json:"success"`
 	Output  string `json:"output"`
-}
-
-type SourceCode struct {
-	SourceCodeTest string       `json:"src_test"`
-	SourceCodes    []SourceFile `json:"src"`
 }
 
 type Metrics struct {

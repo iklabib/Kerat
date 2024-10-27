@@ -7,8 +7,8 @@ import (
 )
 
 type Toolchain interface {
-	PreBuild(workdir string, source model.SourceCode) error
 	Build(srcPath string, files []string) (model.Build, error)
+	Clean(workdir string) error
 }
 
 func NewToolchain(typeName string) (Toolchain, error) {

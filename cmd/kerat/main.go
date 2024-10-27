@@ -5,31 +5,14 @@ import (
 	"net/http"
 	"os"
 
-	"codeberg.org/iklabib/kerat/container"
 	"codeberg.org/iklabib/kerat/server"
-	"codeberg.org/iklabib/kerat/util"
 )
 
 func main() {
-	config, err := util.LoadConfig("config.yaml")
+	server, err := server.NewServer("config.yaml")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
-
-	if config.QueueCap < 0 {
-		log.Fatalln("queue cap must be greater than zero")
-	}
-
-	engine, err := container.NewEngine(*config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := engine.Check(); err != nil {
-		log.Fatal(err)
-	}
-
-	server := server.NewServer(engine, config.QueueCap)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /run", server.HandleRun)

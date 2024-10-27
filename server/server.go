@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
+	"codeberg.org/iklabib/kerat/box"
 	"codeberg.org/iklabib/kerat/container"
 	"codeberg.org/iklabib/kerat/model"
-	"codeberg.org/iklabib/kerat/toolchains"
+	"codeberg.org/iklabib/kerat/util"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -22,12 +22,30 @@ type Server struct {
 	queue  chan string
 }
 
-func NewServer(engine *container.Engine, queueCap int) *Server {
+func NewServer(configPath string) (*Server, error) {
+	config, err := util.LoadConfig(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.QueueCap < 0 {
+		return nil, fmt.Errorf("queue cap must be greater than zero")
+	}
+
+	engine, err := container.NewEngine(*config)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := engine.Check(); err != nil {
+		return nil, err
+	}
+
 	s := &Server{
 		engine: engine,
-		queue:  make(chan string, queueCap),
+		queue:  make(chan string, config.QueueCap),
 	}
-	return s
+	return s, nil
 }
 
 func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
@@ -57,38 +75,14 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 			<-s.queue
 		}()
 
-		tc, err := toolchains.NewToolchain(submission.Type)
+		box, err := box.NewBox(submission)
 		if err != nil {
-			log.Printf("[%s] %s\n", submissionId, err.Error())
+			log.Printf("[%s] failed to create box %s\n", submissionId, err.Error())
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		source := model.SourceCode{
-			SourceCodeTest: submission.SourceCodeTest,
-			SourceCodes:    submission.SourceFiles,
-		}
-
-		workdir, err := os.MkdirTemp("", "box_")
-		if err != nil {
-			log.Printf("[%s] error to create temp dir: %s\n", submissionId, err.Error())
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		if err := tc.PreBuild(workdir, source); err != nil {
-			log.Printf("[%s] prebuild error: %s\n", submissionId, err.Error())
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		// FIXME: make sure filenames are not full path
-		var files []string
-		for _, v := range source.SourceCodes {
-			files = append(files, v.Filename)
-		}
-
-		build, err := tc.Build(workdir, files)
+		build, err := box.Build()
 		if err != nil {
 			log.Printf("[%s] build error: %s\n", submissionId, err.Error())
 			http.Error(w, "internal server error", http.StatusInternalServerError)

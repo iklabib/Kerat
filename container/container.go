@@ -160,6 +160,8 @@ func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.R
 		return nil, fmt.Errorf("error reading container output: %w", err)
 	}
 
+	// I think that hijackedResponse sending control characters to container
+	// so we got those in stdout, sanitize the output
 	result := model.RunResult{
 		Success: true,
 		Output:  string(util.SanitizeStdout(output)),

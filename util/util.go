@@ -1,8 +1,9 @@
 package util
 
 import (
+	"bytes"
 	"os"
-	"unicode"
+	"path/filepath"
 
 	"codeberg.org/iklabib/kerat/model"
 	"github.com/goccy/go-yaml"
@@ -24,30 +25,29 @@ func LoadConfig(configPath string) (*model.Config, error) {
 
 // remove non-printable characters while keeping whitespaces
 func SanitizeStdout(input []byte) []byte {
-	var result []byte
-	for _, ch := range input {
-		r := rune(ch)
-		if !unicode.IsSpace(r) && !unicode.IsPrint(r) {
-			continue
-		}
-
-		result = append(result, ch)
-	}
-	return result
+	// we want to clean control characters like this
+	// \u0001\u0000\u0000\u0000\u0000\u0000\u00009
+	// the last charater is sus tho, 5 digits
+	return bytes.Trim(input, "\u0001\u0000\u00009\n")
 }
 
-// clean from start until printable character found
-// clean from end until printable character found
-func CleanJson(input []byte) []byte {
-	start := 0
-	for start < len(input) && unicode.IsControl(rune(input[start])) {
-		start++
+func IterDir(dir string, filenames []string) ([]string, error) {
+	dirs, err := os.ReadDir(dir)
+	if err != nil {
+		return filenames, err
 	}
 
-	end := len(input) - 1
-	for end > start && unicode.IsControl(rune(input[end])) {
-		end--
+	for _, v := range dirs {
+		path := filepath.Join(dir, v.Name())
+		if !v.IsDir() {
+			filenames = append(filenames, path)
+		} else {
+			filenames, err = IterDir(path, filenames)
+			if err != nil {
+				return filenames, err
+			}
+		}
 	}
 
-	return input[start : end+1]
+	return filenames, nil
 }
