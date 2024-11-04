@@ -108,13 +108,8 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[%s] %s\n", submissionId, ret.Message)
 		}
 
-		result := model.RunResult{
-			Success: ret.Success,
-			Output:  ret.Output,
-		}
-
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		json.NewEncoder(w).Encode(ret)
 		return
 
 	case <-r.Context().Done():
