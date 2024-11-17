@@ -1,6 +1,5 @@
 .git/
 .gitignore
-config.yaml
 build.sh
 LICENSE
 README.md

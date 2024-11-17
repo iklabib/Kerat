@@ -7,16 +7,17 @@ import (
 )
 
 type Toolchain interface {
-	Build(srcPath string, files []string) (model.Build, error)
-	Clean(workdir string) error
+	Prep() error
+	Build() (model.Build, error)
+	Clean() error
 }
 
-func NewToolchain(typeName string) (Toolchain, error) {
-	switch typeName {
-	case "kotlin":
-		kotlin, err := NewKotlin()
-		return kotlin, err
+func NewToolchain(submission model.Submission, repository string) (Toolchain, error) {
+	switch submission.Type {
+	case "csharp":
+		cs, err := NewCsharp(submission, repository)
+		return cs, err
 	}
 
-	return nil, fmt.Errorf("unsupported type \"%s\"", typeName)
+	return nil, fmt.Errorf("unsupported type \"%s\"", submission.Type)
 }

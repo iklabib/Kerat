@@ -1,6 +1,7 @@
 package container
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"log"
 
 	"codeberg.org/iklabib/kerat/model"
-	"codeberg.org/iklabib/kerat/util"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-units"
@@ -16,7 +16,7 @@ import (
 
 type Engine struct {
 	client            *client.Client
-	config            model.Config
+	runtime           string
 	hostConfigs       map[string]container.HostConfig
 	submissionConfigs map[string]model.SubmissionConfig
 }
@@ -28,12 +28,12 @@ func NewEngine(config model.Config) (*Engine, error) {
 	}
 
 	if config.Runtime == "" {
-		config.Runtime = cli.ClientVersion()
+		config.Runtime = "runc"
 	}
 
 	engine := &Engine{
 		client:            cli,
-		config:            config,
+		runtime:           config.Runtime,
 		hostConfigs:       make(map[string]container.HostConfig),
 		submissionConfigs: make(map[string]model.SubmissionConfig),
 	}
@@ -60,9 +60,9 @@ func (e *Engine) buildHostConfig(subType string) container.HostConfig {
 	}
 
 	hostConfig := container.HostConfig{
-		AutoRemove: false,
+		AutoRemove: true,
 		Resources:  resources,
-		Runtime:    e.config.Runtime,
+		Runtime:    e.runtime,
 	}
 
 	// posible values
@@ -106,7 +106,7 @@ func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.R
 		OpenStdin:       true,
 		StdinOnce:       true,
 		NetworkDisabled: true,
-		Image:           "kerat:box",
+		Image:           submissionConfig.ContainerImage,
 		Env:             []string{fmt.Sprintf("TIMEOUT=%d", submissionConfig.Timeout)},
 	}
 
@@ -115,70 +115,64 @@ func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.R
 		return nil, fmt.Errorf("error create container: %w", err)
 	}
 
-	if err := e.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
-		return nil, fmt.Errorf("error start container: %w", err)
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	// TODO: container might in condition of not running after this point, check before hijack
 	hijackedResponse, err := e.client.ContainerAttach(ctx, resp.ID, container.AttachOptions{
 		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
 		Stream: true,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error to attach to container: %w", err)
 	}
+	defer hijackedResponse.Close()
 
-	_, err = hijackedResponse.Conn.Write(append(runPayload.Bin, '\n'))
-	if err != nil {
-		return nil, fmt.Errorf("error write stdin: %w", err)
+	go func() {
+		payload := bytes.NewReader(append(runPayload.Bin, '\n'))
+		_, err := io.Copy(hijackedResponse.Conn, payload)
+		if err != nil {
+			log.Printf("write stdin error %s", err.Error())
+		}
+		hijackedResponse.CloseWrite()
+	}()
+
+	if err := e.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return nil, fmt.Errorf("error start container: %w", err)
 	}
-	hijackedResponse.CloseWrite()
 
 	statusCh, errCh := e.client.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
 	select {
+	case <-ctx.Done(): // cancelled
+		return nil, err
+
 	case err := <-errCh:
 		if err != nil {
 			return nil, fmt.Errorf("error waiting for container: %w", err)
 		}
+
 	case containerStat := <-statusCh:
 		if containerStat.Error != nil {
-			return nil, fmt.Errorf("container %s exited with status code %d error message: %s", resp.ID, containerStat.StatusCode, containerStat.Error.Message)
+			return nil, fmt.Errorf("container %s exited with status code %d error message: %s", resp.ID[:8], containerStat.StatusCode, containerStat.Error.Message)
 		} else if containerStat.StatusCode != 0 {
-			return nil, fmt.Errorf("container %s exited with status code %d", resp.ID, containerStat.StatusCode)
+			return nil, fmt.Errorf("container %s exited with status code %d", resp.ID[:8], containerStat.StatusCode)
 		}
 	}
 
-	out, err := e.client.ContainerLogs(ctx, resp.ID, container.LogsOptions{ShowStdout: true})
-	if err != nil {
-		return nil, fmt.Errorf("error container logging %s", resp.ID)
-	}
-
-	output, err := io.ReadAll(out)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	_, err = StdCopy(&stdout, &stderr, hijackedResponse.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("error reading container output: %w", err)
 	}
 
-	// I think that hijackedResponse sending control characters to container
-	// so we got those in stdout, sanitize the output
 	result := model.Run{}
-	err = json.Unmarshal(util.SanitizeStdout(output), &result)
-	if err != nil {
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		return nil, err
 	}
 
-	go e.removeInBackground(resp.ID)
-
 	return &result, nil
-}
-
-func (e *Engine) removeInBackground(id string) {
-	err := e.Remove(id)
-	if err != nil {
-		log.Printf("failed to remove container %s: %s\n", id, err.Error())
-	}
 }
 
 func (e *Engine) Remove(id string) error {

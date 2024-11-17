@@ -1,6 +1,8 @@
 engine: docker
-runtime: runsc
-queue_cap: 24
+runtime: runc
+queue_cap: 24 # maximum conccurent jobs
+clean_interval: 45 # minutes
+repository: "/repository"
 submission_configs:
   - id: csharp
     cpu_period: 100000
@@ -8,12 +10,14 @@ submission_configs:
     max_pids: 256
     max_swap: 0
     max_memory: 64
-    timeout: 15
+    timeout: 25 
+    container_image: kerat:box-alpine
 
   - id: python
     cpu_period: 100000
     cpu_quota: 150000
     max_pids: 256
-    max_swap: 0
+    max_swap: 0 
     max_memory: 64
-    timeout: 15
+    timeout: 25
+    container_image: kerat:box

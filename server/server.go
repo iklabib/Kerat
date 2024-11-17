@@ -8,17 +8,22 @@ import (
 	"log"
 	"net/http"
 
-	"codeberg.org/iklabib/kerat/box"
 	"codeberg.org/iklabib/kerat/container"
+	"codeberg.org/iklabib/kerat/memo"
 	"codeberg.org/iklabib/kerat/model"
+	"codeberg.org/iklabib/kerat/toolchains"
 	"codeberg.org/iklabib/kerat/util"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-var ALPHABET string = "_abcdefghijklmnopqrstuvwxyz0123456789"
+// TODO
+// log last accessed exercise and clear if there are no activity for N minutes
+
+var ALPHABET string = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 type Server struct {
 	engine *container.Engine
+	config *model.Config
 	queue  chan string
 }
 
@@ -42,6 +47,7 @@ func NewServer(configPath string) (*Server, error) {
 	}
 
 	s := &Server{
+		config: config,
 		engine: engine,
 		queue:  make(chan string, config.QueueCap),
 	}
@@ -49,6 +55,8 @@ func NewServer(configPath string) (*Server, error) {
 }
 
 func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	var submission model.Submission
 	if err := json.NewDecoder(r.Body).Decode(&submission); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -69,20 +77,35 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	caches := memo.NewBoxCaches(s.config.CleanInterval)
+
 	select {
 	case s.queue <- submissionId:
 		defer func() {
 			<-s.queue
 		}()
 
-		box, err := box.NewBox(submission)
-		if err != nil {
-			log.Printf("[%s] failed to create box %s\n", submissionId, err.Error())
+		exerciseId := submission.ExerciseId
+		tc, ok := caches.LoadToolchain(exerciseId)
+		if !ok {
+			var err error
+			tc, err = toolchains.NewToolchain(submission, s.config.Repository)
+			if err != nil {
+				log.Printf("[%s] failed to create box %s\n", submissionId, err.Error())
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+
+			caches.AddToolchain(exerciseId, tc)
+		}
+
+		if err := tc.Prep(); err != nil {
+			log.Printf("[%s] build error: %s\n", submissionId, err.Error())
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		build, err := box.Build()
+		build, err := tc.Build()
 		if err != nil {
 			log.Printf("[%s] build error: %s\n", submissionId, err.Error())
 			http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -90,8 +113,7 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !build.Success {
-			w.Header().Set("Content-Type", "application/json")
-			ret := model.RunResult{Output: build.Stderr}
+			ret := model.EvalResult{Build: build.Stderr}
 			json.NewEncoder(w).Encode(ret)
 			return
 		}
@@ -108,7 +130,6 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[%s] %s\n", submissionId, ret.Message)
 		}
 
-		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ret)
 		return
 

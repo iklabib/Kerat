@@ -1,7 +1,7 @@
 package util
 
 import (
-	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -23,14 +23,6 @@ func LoadConfig(configPath string) (*model.Config, error) {
 	return &config, nil
 }
 
-// remove non-printable characters while keeping whitespaces
-func SanitizeStdout(input []byte) []byte {
-	// we want to clean control characters like this
-	// \u0001\u0000\u0000\u0000\u0000\u0000\u00009
-	// the last charater is sus tho, 5 digits
-	return bytes.Trim(input, "\u0001\u0000\u00009\n")
-}
-
 func IterDir(dir string, filenames []string) ([]string, error) {
 	dirs, err := os.ReadDir(dir)
 	if err != nil {
@@ -50,4 +42,9 @@ func IterDir(dir string, filenames []string) ([]string, error) {
 	}
 
 	return filenames, nil
+}
+
+func IsFsExist(dir string) bool {
+	_, err := os.Stat(dir)
+	return errors.Is(err, os.ErrExist)
 }

@@ -27,13 +27,9 @@ func main() {
 		Exit("failed to parse env timeout")
 	}
 
-	bin, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		Exit("failed to read stdin")
-	}
-
-	if err := os.WriteFile("Main", bin, 0555); err != nil {
-		Exit("failed to write binary to file")
+	// 4MiB buffer size
+	if err := StdinToFile("Main", 4*1024*1024); err != nil {
+		Exit("failed to transfer binary to file")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
@@ -43,7 +39,6 @@ func main() {
 	cmd := exec.CommandContext(ctx, executable)
 	var output bytes.Buffer
 	cmd.Stdout = &output
-	cmd.Stderr = &output
 
 	if err := cmd.Start(); err != nil {
 		msg := fmt.Sprintf("failed to start: %s", err.Error())
@@ -52,10 +47,16 @@ func main() {
 
 	cmd.Wait()
 
+	var testResults []model.TestResult
+	if err := json.Unmarshal(output.Bytes(), &testResults); err != nil {
+		msg := fmt.Sprintf("failed to unmarshal test results: %s", err.Error())
+		Exit(msg)
+	}
+
 	procState := cmd.ProcessState
 	result := model.Run{
 		Success: procState.Success(),
-		Output:  output.String(),
+		Output:  testResults,
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -71,6 +72,37 @@ func main() {
 
 	marshaled, _ := json.Marshal(result)
 	fmt.Println(string(marshaled))
+}
+
+func StdinToFile(filename string, bufferSize int) error {
+	outFile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0555)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	buffer := make([]byte, bufferSize)
+
+	// read binary at once could exceed memory usage
+	// so read and write to file in chunks
+	for {
+		n, err := os.Stdin.Read(buffer)
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		if n > 0 {
+			if _, err := outFile.Write(buffer[:n]); err != nil {
+				return err
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+	}
+
+	return nil
 }
 
 func GetSignal(procState *os.ProcessState) (os.Signal, bool) {
