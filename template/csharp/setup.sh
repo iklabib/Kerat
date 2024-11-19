@@ -1,18 +1,34 @@
 #!/bin/bash
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+set -e  # Exit immediately if a command exits with a non-zero status
 
-DOTNET_VERSION=$1
-mkdir ~/dotnet
-aria2c -x 16 -s 16 "https://dotnetcli.azureedge.net/dotnet/Sdk/8.0.404/dotnet-sdk-$DOTNET_VERSION-linux-x64.tar.gz"
-tar -xf "dotnet-sdk-$DOTNET_VERSION-linux-x64.tar.gz" -C ~/dotnet
-rm "dotnet-sdk-$DOTNET_VERSION-linux-x64.tar.gz"
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
-PATH="~/dotnet:$PATH"
+DOTNET_VERSION=${1:-"8.0.404"}
+ARCH=${2:-"amd64"}  # Default to "amd64" if not provided
 
-mv $SCRIPT_DIR/box.txt $SCRIPT_DIR/box.csproj
-mv $SCRIPT_DIR/Program.txt $SCRIPT_DIR/Main.cs
+if [ "$ARCH" = "amd64" ]; then
+    ARCH="x64"
+fi
 
-dotnet restore $SCRIPT_DIR/box.csproj
-dotnet publish -o $SCRIPT_DIR/output $SCRIPT_DIR/box.csproj
+DOTNET_DIR="$HOME/dotnet"
+mkdir -p "$DOTNET_DIR"
+
+# Download and extract .NET SDK
+TARBALL="dotnet-sdk-$DOTNET_VERSION-linux-$ARCH.tar.gz"
+aria2c -x 16 -s 16 "https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_VERSION/$TARBALL"
+tar -xf "$TARBALL" -C "$DOTNET_DIR"
+rm "$TARBALL"
+
+# Update PATH for the current script
+export PATH="$DOTNET_DIR:$PATH"
+
+# Prepare project files
+mv "$SCRIPT_DIR/box.txt" "$SCRIPT_DIR/box.csproj"
+mv "$SCRIPT_DIR/Program.txt" "$SCRIPT_DIR/Main.cs"
+
+# Restore and publish the .NET project
+dotnet restore "$SCRIPT_DIR/box.csproj"
+dotnet publish -o "$SCRIPT_DIR/output" "$SCRIPT_DIR/box.csproj"
+
 rm -rf $SCRIPT_DIR/output
 rm $SCRIPT_DIR/setup.sh
