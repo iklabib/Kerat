@@ -15,7 +15,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /run", server.HandleRun)
+	mux.HandleFunc("POST /submit", server.HandleSubmission)
 
 	address := ":31415"
 	if host := os.Getenv("KERAT_HOST"); host != "" {
