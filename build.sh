@@ -9,7 +9,7 @@ if [[ "$ARCH" != "amd64" && "$ARCH" != "arm64" ]]; then
 fi
 
 build() {
-  $ENGINE buildx build . -t kerat:$1 -f ${2:-containerfiles/$1.Dockerfile} --build-arg ARCH=$ARCH --platform linux/$ARCH 
+  $ENGINE buildx build . -t iklabib/kerat:$1 -f ${2:-containerfiles/$1.Dockerfile} --build-arg ARCH=$ARCH --platform linux/$ARCH 
 }
 
 build_all() {
@@ -26,12 +26,28 @@ build_all() {
   done
 }
 
+pull_all() {
+  # List of all targets to pull
+  images=(
+    "iklabib/kerat:box"
+    "iklabib/kerat:box-alpine"
+    "iklabib/kerat:python"
+    "iklabib/kerat:engine"
+  )
+
+  for image in "${images[@]}"; do
+    echo "Pulling $image..."
+    $ENGINE pull "$image"
+  done
+}
+
 case "$1" in
   box) build box containerfiles/box.Dockerfile ;;
   box-alpine) build box-alpine containerfiles/box-alpine.Dockerfile ;;
   python) build python containerfiles/python.Dockerfile ;;
   kerat) build kerat Dockerfile ;;
   all) build_all ;;
+  pull) pull_all ;;
   *) echo "Usage: $0 {box|box-alpine|python|kerat|all} [ARCH]"
      echo "ARCH must be 'amd64' or 'arm64'." ;;
 esac
