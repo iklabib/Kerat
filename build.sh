@@ -17,7 +17,7 @@ build_all() {
     ["box"]="containerfiles/box.Dockerfile"
     ["box-alpine"]="containerfiles/box-alpine.Dockerfile"
     ["python"]="containerfiles/python.Dockerfile"
-    ["kerat"]="Dockerfile"
+    ["engine"]="Dockerfile"
   )
 
   for target in "${!targets[@]}"; do
@@ -45,7 +45,7 @@ case "$1" in
   box) build box containerfiles/box.Dockerfile ;;
   box-alpine) build box-alpine containerfiles/box-alpine.Dockerfile ;;
   python) build python containerfiles/python.Dockerfile ;;
-  kerat) build kerat Dockerfile ;;
+  engine) build engine Dockerfile ;;
   all) build_all ;;
   pull) pull_all ;;
   *) echo "Usage: $0 {box|box-alpine|python|kerat|all} [ARCH]"
