@@ -1,15 +1,21 @@
 #!/bin/bash
 
 ENGINE=docker
-ARCH=${2:-"amd64"} 
+ARCH=${2:-"amd64"}
 
-if [[ "$ARCH" != "amd64" && "$ARCH" != "arm64" ]]; then
-  echo "Error: Supported architectures are 'amd64' or 'arm64'"
+if [[ "$ARCH" != "amd64" && "$ARCH" != "arm64" && "$ARCH" != "all" ]]; then
+  echo "Error: Supported architectures are 'amd64', 'arm64' or 'all'"
   exit 1
 fi
 
 build() {
-  $ENGINE buildx build . -t iklabib/kerat:$1 -f ${2:-containerfiles/$1.Dockerfile} --build-arg ARCH=$ARCH --platform linux/$ARCH 
+  if [[ "$ARCH" == "all" ]]; then
+    PLATFORMS="linux/amd64,linux/arm64"
+  else
+    PLATFORMS="linux/$ARCH"
+  fi
+
+  $ENGINE buildx build . -t iklabib/kerat:$1 -f ${2:-containerfiles/$1.Dockerfile} --platform $PLATFORMS --push
 }
 
 build_all() {
@@ -48,6 +54,6 @@ case "$1" in
   engine) build engine Dockerfile ;;
   all) build_all ;;
   pull) pull_all ;;
-  *) echo "Usage: $0 {box|box-alpine|python|kerat|all} [ARCH]"
-     echo "ARCH must be 'amd64' or 'arm64'." ;;
+  *) echo "Usage: $0 {box|box-alpine|python|engine|all} [ARCH]"
+     echo "ARCH must be 'amd64', 'arm64', or 'all' for multi-arch builds." ;;
 esac
