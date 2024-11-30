@@ -44,7 +44,7 @@ func NewCsharp(submission model.Submission, repository string) (*Csharp, error) 
 
 func (cs *Csharp) Prep() error {
 	// copy template
-	if !util.IsFsExist(filepath.Join(cs.workdir, "box.csproj")) {
+	if util.IsNotExist(cs.workdir) {
 		err := os.Mkdir(cs.workdir, 0755)
 		if err != nil && !errors.Is(err, os.ErrExist) {
 			return err
@@ -133,10 +133,6 @@ func (cs *Csharp) Build() (model.Build, error) {
 
 // delete source codes, leave the caches behind
 func (cs *Csharp) cleanSources() error {
-	if err := os.Remove(filepath.Join(cs.workdir, "Main.cs")); err != nil {
-		return err
-	}
-
 	sources := append(cs.src, cs.srcTest...)
 	for _, v := range sources {
 		filePath := filepath.Join(cs.workdir, v.Filename)

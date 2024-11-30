@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -44,7 +45,7 @@ func IterDir(dir string, filenames []string) ([]string, error) {
 	return filenames, nil
 }
 
-func IsFsExist(dir string) bool {
+func IsNotExist(dir string) bool {
 	_, err := os.Stat(dir)
-	return errors.Is(err, os.ErrExist)
+	return errors.Is(err, fs.ErrNotExist)
 }
