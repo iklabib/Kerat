@@ -129,8 +129,15 @@ func (s *Server) handleCompiledSubmission(w http.ResponseWriter, r *http.Request
 	}
 
 	build, err := tc.Build()
-	if err != nil || !build.Success {
+	if err != nil {
 		log.Printf("[%s] build error: %v\n", submissionId, err)
+		http.Error(w, "build failed", http.StatusInternalServerError)
+		return
+	}
+
+	if !build.Success {
+		log.Printf("[%s] build stderr: %s \n", submissionId, build.Stderr)
+		log.Printf("[%s] build stdout: %s \n", submissionId, build.Stdout)
 		http.Error(w, "build failed", http.StatusInternalServerError)
 		return
 	}

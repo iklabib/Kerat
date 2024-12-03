@@ -11,7 +11,7 @@ submission_configs:
     max_swap: 0
     max_memory: 64
     timeout: 25 
-    container_image: kerat:box-alpine
+    container_image: iklabib/kerat:box-alpine
 
   - id: python
     cpu_period: 100000
@@ -20,4 +20,4 @@ submission_configs:
     max_swap: 0 
     max_memory: 64
     timeout: 25
-    container_image: kerat:box
+    container_image: iklabib/kerat:python

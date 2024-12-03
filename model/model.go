@@ -5,8 +5,8 @@ import (
 )
 
 type Submission struct {
-	ExerciseId string     `json:"exercise_id"`
-	Type       string     `json:"type"`
+	ExerciseId string     `json:"id"`
+	Type       string     `json:"subtype"`
 	Source     SourceCode `json:"source"`
 }
 
@@ -30,6 +30,7 @@ type Build struct {
 	Bin     []byte
 	BinName string
 	Stderr  string
+	Stdout  string
 }
 
 type Run struct {

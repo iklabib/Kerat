@@ -44,7 +44,7 @@ public class Program
             {
                 Passed = false,
                 Name = info.TestDisplayName,
-                StackTrace = info.ExceptionStackTrace,
+                StackTrace = string.IsNullOrEmpty(info.ExceptionMessage) ? info.ExceptionStackTrace : info.ExceptionMessage,
             });
         };
 

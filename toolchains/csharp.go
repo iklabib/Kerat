@@ -72,6 +72,7 @@ func (cs *Csharp) Build() (model.Build, error) {
 	defer cs.cleanSources()
 
 	stderr := bytes.Buffer{}
+	stdout := bytes.Buffer{}
 
 	args := []string{
 		"publish",
@@ -85,6 +86,7 @@ func (cs *Csharp) Build() (model.Build, error) {
 	cmd := exec.Command(cs.binPath, args...)
 	cmd.Dir = cs.workdir
 	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
 
 	if err := cmd.Start(); err != nil {
 		build := model.Build{Stderr: stderr.String()}
@@ -111,7 +113,7 @@ func (cs *Csharp) Build() (model.Build, error) {
 
 	// we expect that failed build return 1 as exit code and fill stderr
 	if !procState.Success() {
-		build := model.Build{Stderr: stderr.String()}
+		build := model.Build{Stderr: stderr.String(), Stdout: stdout.String()}
 		return build, nil
 	}
 
