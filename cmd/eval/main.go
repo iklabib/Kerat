@@ -54,7 +54,7 @@ func main() {
 	}
 
 	procState := cmd.ProcessState
-	result := model.Run{
+	result := model.EvalResult{
 		Success: procState.Success(),
 		Output:  testResults,
 	}
@@ -119,7 +119,7 @@ func GetSignal(procState *os.ProcessState) (os.Signal, bool) {
 }
 
 func Exit(message string) {
-	result := model.Run{Message: message}
+	result := model.EvalResult{Message: message}
 	content, _ := json.Marshal(result)
 	fmt.Println(string(content))
 	os.Exit(0)

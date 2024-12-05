@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 
 	"codeberg.org/iklabib/kerat/model"
 	"github.com/docker/docker/api/types/container"
@@ -40,16 +39,13 @@ func NewEngine(config model.Config) (*Engine, error) {
 
 	for _, v := range config.SubmissionConfigs {
 		engine.submissionConfigs[v.Id] = v
+		engine.hostConfigs[v.Id] = engine.buildHostConfig(v.Id)
 	}
 
 	return engine, nil
 }
 
 func (e *Engine) buildHostConfig(subType string) container.HostConfig {
-	if c, ok := e.hostConfigs[subType]; ok {
-		return c
-	}
-
 	config := e.submissionConfigs[subType]
 	resources := container.Resources{
 		Memory:     config.MaxMemory * 1024 * 1024,
@@ -80,9 +76,6 @@ func (e *Engine) buildHostConfig(subType string) container.HostConfig {
 		hostConfig.Ulimits = append(hostConfig.Ulimits, ulim)
 	}
 
-	// TODO: don't mutate here
-	e.hostConfigs[subType] = hostConfig
-
 	return hostConfig
 }
 
@@ -96,9 +89,9 @@ func (e *Engine) Check() error {
 	return err
 }
 
-func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.Run, error) {
+func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.EvalResult, error) {
 	submissionConfig := e.submissionConfigs[runPayload.Type]
-	hostConfig := e.buildHostConfig(runPayload.Type)
+	hostConfig := e.hostConfigs[runPayload.Type]
 
 	var containerConfig = container.Config{
 		Hostname:        "box",
@@ -129,13 +122,16 @@ func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.R
 	}
 	defer hijackedResponse.Close()
 
+	stdinDone := make(chan error, 1)
 	go func() {
 		payload := bytes.NewReader(append(runPayload.Bin, '\n'))
 		_, err := io.Copy(hijackedResponse.Conn, payload)
 		if err != nil {
-			log.Printf("write stdin error %s", err.Error())
+			stdinDone <- fmt.Errorf("stdin write error: %w", err)
+			return
 		}
 		hijackedResponse.CloseWrite()
+		close(stdinDone)
 	}()
 
 	if err := e.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
@@ -146,6 +142,11 @@ func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.R
 	select {
 	case <-ctx.Done(): // cancelled
 		return nil, err
+
+	case stdinErr := <-stdinDone:
+		if stdinErr != nil {
+			return nil, stdinErr
+		}
 
 	case err := <-errCh:
 		if err != nil {
@@ -167,7 +168,7 @@ func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.R
 		return nil, fmt.Errorf("error reading container output: %w", err)
 	}
 
-	result := model.Run{}
+	result := model.EvalResult{}
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		return nil, err
 	}

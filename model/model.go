@@ -33,16 +33,17 @@ type Build struct {
 	Stdout  string
 }
 
-type Run struct {
-	Message string       `json:"message"`
-	Success bool         `json:"success"`
-	Output  []TestResult `json:"output"`
+type EvalResult struct {
+	Success bool
+	Message string
+	Output  []TestResult
 }
 
-type EvalResult struct {
-	Success bool   `json:"success"`
-	Build   string `json:"build"`
-	Run     `json:"run"`
+type SubmitResult struct {
+	Success bool         `json:"success"`
+	Message string       `json:"message"`
+	Build   string       `json:"build"`
+	Tests   []TestResult `json:"tests"`
 }
 
 type TestResult struct {

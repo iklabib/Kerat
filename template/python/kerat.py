@@ -8,6 +8,7 @@ from dataclasses import asdict
 from collections.abc import Sequence
 from runner import KeratTestRunner
 
+
 def run_tests(filenames: Sequence[str], dir: Path):
     sys.path.insert(0, dir.as_posix())
 
