@@ -1,4 +1,3 @@
-import os
 import sys
 import json
 from model import Run
@@ -15,14 +14,3 @@ def exit(msg: str):
 def write(path: Path, content: str):
     with path.open("w") as w:
         w.write(content)
-
-
-def get_timeout() -> int:
-    v = os.environ.get("TIMEOUT")
-    if v is None or v == "":
-        exit("env timeout not defined")
-
-    try:
-        return int(v)
-    except ValueError:
-        exit("failed to parse env timeout")

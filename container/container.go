@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 
 	"codeberg.org/iklabib/kerat/model"
 	"github.com/docker/docker/api/types/container"
@@ -56,7 +55,7 @@ func (e *Engine) buildHostConfig(subType string) container.HostConfig {
 	}
 
 	hostConfig := container.HostConfig{
-		AutoRemove: true,
+		AutoRemove: false,
 		Resources:  resources,
 		Runtime:    e.runtime,
 	}
@@ -89,91 +88,75 @@ func (e *Engine) Check() error {
 	return err
 }
 
-func (e *Engine) Run(ctx context.Context, runPayload model.RunPayload) (*model.EvalResult, error) {
-	submissionConfig := e.submissionConfigs[runPayload.Type]
-	hostConfig := e.hostConfigs[runPayload.Type]
+func (e *Engine) Create(ctx context.Context, subType string) (string, error) {
+	submissionConfig := e.submissionConfigs[subType]
+	hostConfig := e.hostConfigs[subType]
 
 	var containerConfig = container.Config{
 		Hostname:        "box",
 		Domainname:      "box",
-		OpenStdin:       true,
-		StdinOnce:       true,
 		NetworkDisabled: true,
 		Image:           submissionConfig.ContainerImage,
-		Env:             []string{fmt.Sprintf("TIMEOUT=%d", submissionConfig.Timeout)},
 	}
 
-	resp, err := e.client.ContainerCreate(ctx, &containerConfig, &hostConfig, nil, nil, "")
+	resp, err := e.client.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil, nil, "")
 	if err != nil {
-		return nil, fmt.Errorf("error create container: %w", err)
+		return "", fmt.Errorf("error create container: %w", err)
 	}
 
+	return resp.ID, nil
+}
+
+func (e *Engine) Copy(ctx context.Context, payload CopyPayload) error {
+	opt := container.CopyToContainerOptions{}
+	return e.client.CopyToContainer(ctx, payload.ContainerId, payload.Dest, payload.Content, opt)
+}
+
+func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer e.Remove(payload.ContainerId)
 
-	hijackedResponse, err := e.client.ContainerAttach(ctx, resp.ID, container.AttachOptions{
-		Stdin:  true,
-		Stdout: true,
-		Stderr: true,
-		Stream: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error to attach to container: %w", err)
-	}
-	defer hijackedResponse.Close()
-
-	stdinDone := make(chan error, 1)
-	go func() {
-		payload := bytes.NewReader(append(runPayload.Bin, '\n'))
-		_, err := io.Copy(hijackedResponse.Conn, payload)
-		if err != nil {
-			stdinDone <- fmt.Errorf("stdin write error: %w", err)
-			return
-		}
-		hijackedResponse.CloseWrite()
-		close(stdinDone)
-	}()
-
-	if err := e.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
-		return nil, fmt.Errorf("error start container: %w", err)
+	var res ContainerResult
+	if err := e.client.ContainerStart(ctx, payload.ContainerId, container.StartOptions{}); err != nil {
+		return res, fmt.Errorf("error start container: %w", err)
 	}
 
-	statusCh, errCh := e.client.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+	statusCh, errCh := e.client.ContainerWait(ctx, payload.ContainerId, container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done(): // cancelled
-		return nil, err
-
-	case stdinErr := <-stdinDone:
-		if stdinErr != nil {
-			return nil, stdinErr
-		}
+		return res, ctx.Err()
 
 	case err := <-errCh:
 		if err != nil {
-			return nil, fmt.Errorf("error waiting for container: %w", err)
+			return res, fmt.Errorf("error waiting for container: %w", err)
 		}
 
 	case containerStat := <-statusCh:
 		if containerStat.Error != nil {
-			return nil, fmt.Errorf("container %s exited with status code %d error message: %s", resp.ID[:8], containerStat.StatusCode, containerStat.Error.Message)
+			return res, fmt.Errorf("container %s exited with status code %d error message: %s", payload.ContainerId[:8], containerStat.StatusCode, containerStat.Error.Message)
 		} else if containerStat.StatusCode != 0 {
-			return nil, fmt.Errorf("container %s exited with status code %d", resp.ID[:8], containerStat.StatusCode)
+			return res, fmt.Errorf("container %s exited with status code %d", payload.ContainerId[:8], containerStat.StatusCode)
 		}
 	}
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	_, err = StdCopy(&stdout, &stderr, hijackedResponse.Reader)
+	out, err := e.client.ContainerLogs(ctx, payload.ContainerId, container.LogsOptions{ShowStdout: true, ShowStderr: true})
 	if err != nil {
-		return nil, fmt.Errorf("error reading container output: %w", err)
+		return res, fmt.Errorf("error reading container output: %w", err)
 	}
 
-	result := model.EvalResult{}
-	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
-		return nil, err
+	_, err = StdCopy(&stdout, &stderr, out)
+	if err != nil {
+		return res, fmt.Errorf("error reading container output: %w", err)
 	}
 
-	return &result, nil
+	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
+		return res, fmt.Errorf("error deserialize output: %s", err.Error())
+	}
+
+	return res, nil
 }
 
 func (e *Engine) Remove(id string) error {

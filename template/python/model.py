@@ -18,6 +18,7 @@ class SourceCode:
 class TestResult:
     passed: bool
     name: str
+    message: str
     stack_trace: str
 
 

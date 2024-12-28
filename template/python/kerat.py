@@ -3,7 +3,6 @@ import json
 import unittest
 from model import Run
 from pathlib import Path
-from util import get_timeout
 from dataclasses import asdict
 from collections.abc import Sequence
 from runner import KeratTestRunner
@@ -14,8 +13,7 @@ def run_tests(filenames: Sequence[str], dir: Path):
 
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromNames(filenames)
-    timeout = get_timeout()
-    runner = KeratTestRunner(timeout)
+    runner = KeratTestRunner()
 
     res = runner.run(suite)
     res = Run("", True, res)

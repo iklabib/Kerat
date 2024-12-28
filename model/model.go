@@ -20,17 +20,16 @@ type SourceFile struct {
 	SourceCode string `json:"src"`
 }
 
-type RunPayload struct {
-	Type string
-	Bin  []byte
-}
-
 type Build struct {
 	Success bool
-	Bin     []byte
-	BinName string
-	Stderr  string
-	Stdout  string
+	BinPath string
+	Stderr  []byte
+	Stdout  []byte
+}
+
+type Runtime struct {
+	Stdout []byte `json:"stdout"`
+	Stderr []byte `json:"stderr"`
 }
 
 type EvalResult struct {
@@ -41,7 +40,6 @@ type EvalResult struct {
 
 type SubmitResult struct {
 	Success bool         `json:"success"`
-	Message string       `json:"message"`
 	Build   string       `json:"build"`
 	Tests   []TestResult `json:"tests"`
 }
@@ -49,6 +47,7 @@ type SubmitResult struct {
 type TestResult struct {
 	Passed     bool   `json:"passed"`
 	Name       string `json:"name"`
+	Message    string `json:"message"`
 	StackTrace string `json:"stack_trace"`
 }
 

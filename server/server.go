@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"codeberg.org/iklabib/kerat/container"
 	"codeberg.org/iklabib/kerat/memo"
@@ -85,19 +86,29 @@ func (s *Server) handleContextCancellation(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleInterpretedSubmission(w http.ResponseWriter, r *http.Request, submission model.Submission, submissionId string) {
-	sourceCode := model.SourceCode{
-		Src:     submission.Source.Src,
-		SrcTest: submission.Source.SrcTest,
-	}
-
-	bin, err := json.Marshal(sourceCode)
+	containerId, err := s.engine.Create(context.Background(), submission.Type)
 	if err != nil {
-		log.Printf("[%s] failed to serialize source code: %v\n", submissionId, err)
+		log.Printf("[%s] container creation error: %v\n", submissionId, err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	ret, err := s.engine.Run(r.Context(), model.RunPayload{Type: submission.Type, Bin: bin})
+	content, err := util.TarSources(submission.Source)
+	if err != nil {
+		log.Printf("[%s] creating tar error: %v\n", submissionId, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	copyPayload := container.CopyPayload{ContainerId: containerId, Dest: "/workspace", Content: &content}
+	err = s.engine.Copy(context.Background(), copyPayload)
+	if err != nil {
+		log.Printf("[%s] copying tar error: %v\n", submissionId, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	ret, err := s.engine.Run(r.Context(), container.RunPayload{ContainerId: containerId})
 	if err != nil {
 		log.Printf("[%s] %s\n", submissionId, err.Error())
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -139,23 +150,51 @@ func (s *Server) handleCompiledSubmission(w http.ResponseWriter, r *http.Request
 		log.Printf("[%s] build stderr: %s \n", submissionId, build.Stderr)
 		log.Printf("[%s] build stdout: %s \n", submissionId, build.Stdout)
 		result := model.SubmitResult{
-			Message: "build error",
-			Build:   build.Stderr,
+			Build: string(build.Stderr),
 		}
 		json.NewEncoder(w).Encode(result)
 		return
 	}
 
-	ret, err := s.engine.Run(r.Context(), model.RunPayload{Type: submission.Type, Bin: build.Bin})
+	bin, err := os.ReadFile(build.BinPath)
+	if err != nil {
+		log.Printf("[%s] failed to read binary: %v\n", submissionId, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	containerId, err := s.engine.Create(context.Background(), submission.Type)
+	if err != nil {
+		log.Printf("[%s] container creation error: %v\n", submissionId, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	content, err := util.TarBinary("box", bin)
+	if err != nil {
+		log.Printf("[%s] creating tar error: %v\n", submissionId, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	copyPayload := container.CopyPayload{ContainerId: containerId, Dest: "/workspace", Content: &content}
+	err = s.engine.Copy(context.Background(), copyPayload)
+	if err != nil {
+		log.Printf("[%s] copying tar error: %v\n", submissionId, err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	runPayload := container.RunPayload{ContainerId: containerId}
+	ret, err := s.engine.Run(r.Context(), runPayload)
 	if err != nil {
 		log.Printf("[%s] runtime error: %v\n", submissionId, err)
-		http.Error(w, "runtime failed", http.StatusInternalServerError)
+		http.Error(w, "runtime error", http.StatusInternalServerError)
 		return
 	}
 
 	result := model.SubmitResult{
 		Success: ret.Success,
-		Message: ret.Message,
 		Tests:   ret.Output,
 	}
 	json.NewEncoder(w).Encode(result)

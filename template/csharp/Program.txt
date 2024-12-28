@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
-using System.Diagnostics;
 
 public class Program
 {
@@ -66,9 +65,29 @@ public class Program
 
         completionEvent.Wait();
 
+        var testResult = stack.ToArray();
+
+        var res = new ContainerResult 
+        {
+            Success = testResult.All(el => el.Passed),
+            Output = testResult,
+        };
+
         Console.Clear();
-        Console.WriteLine(JsonSerializer.Serialize(stack));
+        Console.WriteLine(JsonSerializer.Serialize(res));
     }
+}
+
+public class ContainerResult 
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; } = false;
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = "";
+
+    [JsonPropertyName("output")]
+    public IEnumerable<TestResult> Output { get; set; } = [];
 }
 
 public class TestResult
@@ -78,6 +97,9 @@ public class TestResult
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = "";
 
     [JsonPropertyName("stack_trace")]
     public string StackTrace { get; set; } = "";

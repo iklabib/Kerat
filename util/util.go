@@ -1,10 +1,13 @@
 package util
 
 import (
+	"archive/tar"
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"codeberg.org/iklabib/kerat/model"
 	"github.com/goccy/go-yaml"
@@ -48,4 +51,50 @@ func IterDir(dir string, filenames []string) ([]string, error) {
 func IsNotExist(dir string) bool {
 	_, err := os.Stat(dir)
 	return errors.Is(err, fs.ErrNotExist)
+}
+
+func TarSources(files model.SourceCode) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	defer tw.Close()
+
+	sources := append(files.Src, files.SrcTest...)
+
+	for _, file := range sources {
+		header := &tar.Header{
+			Name:    file.Filename,
+			Size:    int64(len(file.SourceCode)),
+			Mode:    0644,
+			ModTime: time.Now(),
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			return buf, err
+		}
+		if _, err := tw.Write([]byte(file.SourceCode)); err != nil {
+			return buf, err
+		}
+	}
+
+	return buf, nil
+}
+
+func TarBinary(filename string, bin []byte) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	defer tw.Close()
+
+	header := &tar.Header{
+		Name:    filename,
+		Size:    int64(len(bin)),
+		Mode:    0644,
+		ModTime: time.Now(),
+	}
+	if err := tw.WriteHeader(header); err != nil {
+		return buf, err
+	}
+	if _, err := tw.Write(bin); err != nil {
+		return buf, err
+	}
+
+	return buf, nil
 }

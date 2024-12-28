@@ -1,8 +1,7 @@
 import json
-import tempfile
-from pathlib import Path
 from kerat import run_tests
-from util import write, exit
+from pathlib import Path
+from util import exit
 from model import SourceCode, SourceFile
 
 
@@ -19,15 +18,6 @@ def load_source_code(json_data: str) -> SourceCode:
 
 
 if __name__ == "__main__":
-    payload = input()
-    source_code = load_source_code(payload)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        dir = Path(tmpdir)
-
-        sources = source_code.src + source_code.src_test
-        for src in sources:
-            write(dir / src.filename, src.src)
-
-        filenames = [Path(x.filename).stem for x in source_code.src_test]
-        run_tests(filenames, dir.absolute())
+    workdir = Path("/") / "workspace"
+    filenames = [Path(x.name).stem for x in workdir.glob("*.py")]
+    run_tests(filenames, workdir.absolute())

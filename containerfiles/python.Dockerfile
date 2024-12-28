@@ -1,5 +1,6 @@
 FROM python:3.13-alpine3.20
 
-WORKDIR /app
+WORKDIR /kerat
 COPY template/python .
-ENTRYPOINT ["python3", "/app/main.py" ]
+RUN mkdir -p /workspace
+ENTRYPOINT ["python3", "/kerat/main.py" ]

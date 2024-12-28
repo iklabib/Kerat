@@ -89,7 +89,7 @@ func (cs *Csharp) Build() (model.Build, error) {
 	cmd.Stdout = &stdout
 
 	if err := cmd.Start(); err != nil {
-		build := model.Build{Stderr: stderr.String()}
+		build := model.Build{Stderr: stderr.Bytes()}
 		return build, fmt.Errorf("error to start c# build")
 	}
 
@@ -107,27 +107,21 @@ func (cs *Csharp) Build() (model.Build, error) {
 			err = fmt.Errorf("c# compiler stopped working signaled %s", wt.Signal().String())
 		}
 
-		build := model.Build{Stderr: stderr.String()}
+		build := model.Build{Stderr: stderr.Bytes()}
 		return build, err
 	}
 
 	// we expect that failed build return 1 as exit code and fill stderr
 	if !procState.Success() {
-		build := model.Build{Stderr: stderr.String(), Stdout: stdout.String()}
+		build := model.Build{Stderr: stderr.Bytes(), Stdout: stdout.Bytes()}
 		return build, nil
 	}
 
 	binName := "box"
 	binPath := filepath.Join(cs.workdir, "output", binName)
-	bin, err := os.ReadFile(binPath)
-	if err != nil {
-		return model.Build{}, fmt.Errorf("error to read compiled binary: %s", err.Error())
-	}
-
 	build := model.Build{
 		Success: true,
-		Bin:     bin,
-		BinName: binName,
+		BinPath: binPath,
 	}
 
 	return build, nil
