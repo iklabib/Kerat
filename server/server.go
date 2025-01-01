@@ -93,6 +93,10 @@ func (s *Server) handleInterpretedSubmission(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	defer func() {
+		go s.engine.Remove(containerId)
+	}()
+
 	content, err := util.TarSources(submission.Source)
 	if err != nil {
 		log.Printf("[%s] creating tar error: %v\n", submissionId, err)
@@ -108,7 +112,7 @@ func (s *Server) handleInterpretedSubmission(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	ret, err := s.engine.Run(r.Context(), container.RunPayload{ContainerId: containerId})
+	ret, err := s.engine.Run(r.Context(), container.RunPayload{ContainerId: containerId, SubmissionType: submission.Type})
 	if err != nil {
 		log.Printf("[%s] %s\n", submissionId, err.Error())
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -185,7 +189,7 @@ func (s *Server) handleCompiledSubmission(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	runPayload := container.RunPayload{ContainerId: containerId}
+	runPayload := container.RunPayload{ContainerId: containerId, SubmissionType: submission.Type}
 	ret, err := s.engine.Run(r.Context(), runPayload)
 	if err != nil {
 		log.Printf("[%s] runtime error: %v\n", submissionId, err)

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"time"
 
 	"codeberg.org/iklabib/kerat/model"
 	"github.com/docker/docker/api/types/container"
@@ -113,18 +115,21 @@ func (e *Engine) Copy(ctx context.Context, payload CopyPayload) error {
 }
 
 func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	defer e.Remove(payload.ContainerId)
+	timeout := e.submissionConfigs[payload.SubmissionType].Timeout
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(timeout))
+	defer timeoutCancel()
 
 	var res ContainerResult
 	if err := e.client.ContainerStart(ctx, payload.ContainerId, container.StartOptions{}); err != nil {
 		return res, fmt.Errorf("error start container: %w", err)
 	}
 
-	statusCh, errCh := e.client.ContainerWait(ctx, payload.ContainerId, container.WaitConditionNotRunning)
+	statusCh, errCh := e.client.ContainerWait(timeoutCtx, payload.ContainerId, container.WaitConditionNotRunning)
 	select {
-	case <-ctx.Done(): // cancelled
+	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return res, fmt.Errorf("runtime timeout")
+		}
 		return res, ctx.Err()
 
 	case err := <-errCh:
@@ -159,8 +164,51 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 	return res, nil
 }
 
+func (e *Engine) Stat(id string) (container.Stats, error) {
+	var statsResp container.StatsResponse
+	res, err := e.client.ContainerStats(context.Background(), id, false)
+	if err != nil {
+		return statsResp.Stats, err
+	}
+	defer res.Body.Close()
+
+	if err := json.NewDecoder(res.Body).Decode(&statsResp); err != nil {
+		return statsResp.Stats, fmt.Errorf("failed to decode stats: %w", err)
+	}
+
+	return statsResp.Stats, err
+}
+
+func (e *Engine) monitorStat(id string) error {
+
+	ctx := context.Background()
+	res, err := e.client.ContainerStats(ctx, id, false)
+	if err != nil {
+		return fmt.Errorf("failed to get stats stream: %w", err)
+	}
+	defer res.Body.Close()
+
+	decoder := json.NewDecoder(res.Body)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			var statsResp container.StatsResponse
+			if err := decoder.Decode(&statsResp); err != nil {
+				return fmt.Errorf("failed to decode stats: %w", err)
+			}
+		}
+	}
+}
+
 func (e *Engine) Remove(id string) error {
 	return e.client.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
+}
+
+func (e *Engine) Stop(id string) error {
+	return e.client.ContainerStop(context.Background(), id, container.StopOptions{})
 }
 
 func (e *Engine) Kill(id string) error {

@@ -32,12 +32,6 @@ type Runtime struct {
 	Stderr []byte `json:"stderr"`
 }
 
-type EvalResult struct {
-	Success bool
-	Message string
-	Output  []TestResult
-}
-
 type SubmitResult struct {
 	Success bool         `json:"success"`
 	Build   string       `json:"build"`

@@ -7,7 +7,8 @@ import (
 )
 
 type RunPayload struct {
-	ContainerId string
+	ContainerId    string
+	SubmissionType string
 }
 
 type CopyPayload struct {
