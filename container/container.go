@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"codeberg.org/iklabib/kerat/model"
@@ -116,13 +117,19 @@ func (e *Engine) Copy(ctx context.Context, payload CopyPayload) error {
 
 func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, error) {
 	timeout := e.submissionConfigs[payload.SubmissionType].Timeout
-	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(timeout))
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer timeoutCancel()
 
 	var res ContainerResult
 	if err := e.client.ContainerStart(ctx, payload.ContainerId, container.StartOptions{}); err != nil {
 		return res, fmt.Errorf("error start container: %w", err)
 	}
+
+	metricsCh := make(chan Metrics, 1)
+	monitorErrCh := make(chan error, 1)
+	statCtx, statCancel := context.WithCancel(ctx)
+	go e.monitorStat(statCtx, payload.ContainerId, metricsCh, monitorErrCh)
+	defer statCancel()
 
 	statusCh, errCh := e.client.ContainerWait(timeoutCtx, payload.ContainerId, container.WaitConditionNotRunning)
 	select {
@@ -133,9 +140,14 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 		return res, ctx.Err()
 
 	case err := <-errCh:
-		if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return res, fmt.Errorf("runtime timeout")
+		} else if err != nil {
 			return res, fmt.Errorf("error waiting for container: %w", err)
 		}
+
+	case err := <-monitorErrCh:
+		return res, fmt.Errorf("monitoring error: %w", err)
 
 	case containerStat := <-statusCh:
 		if containerStat.Error != nil {
@@ -144,6 +156,9 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 			return res, fmt.Errorf("container %s exited with status code %d", payload.ContainerId[:8], containerStat.StatusCode)
 		}
 	}
+
+	// container should not running at this point
+	statCancel()
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -160,6 +175,12 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
 		return res, fmt.Errorf("error deserialize output: %s", err.Error())
 	}
+
+	res.Metrics = <-metricsCh
+	deadline, _ := timeoutCtx.Deadline()
+
+	wallTime := time.Since(deadline.Add(-time.Duration(timeout) * time.Second))
+	res.Metrics.WallTime = math.Round(wallTime.Seconds()*100) / 100
 
 	return res, nil
 }
@@ -179,25 +200,51 @@ func (e *Engine) Stat(id string) (container.Stats, error) {
 	return statsResp.Stats, err
 }
 
-func (e *Engine) monitorStat(id string) error {
+func (e *Engine) monitorStat(ctx context.Context, id string, metricsCh chan<- Metrics, errCh chan<- error) {
+	defer close(metricsCh)
 
-	ctx := context.Background()
-	res, err := e.client.ContainerStats(ctx, id, false)
+	res, err := e.client.ContainerStats(ctx, id, true)
 	if err != nil {
-		return fmt.Errorf("failed to get stats stream: %w", err)
+		errCh <- fmt.Errorf("failed to get stats stream: %w", err)
+		return
 	}
 	defer res.Body.Close()
 
 	decoder := json.NewDecoder(res.Body)
 
+	var cpu uint64 = 0
+	var peakMem uint64 = 0
+
+	defer func() {
+		inspect, err := e.client.ContainerInspect(context.Background(), id)
+		if err != nil {
+			errCh <- fmt.Errorf("inspect error: %w", err)
+		}
+
+		metricsCh <- Metrics{
+			ExitCode: inspect.State.ExitCode,
+			CpuTime:  cpu,
+			Memory:   peakMem,
+		}
+
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		default:
 			var statsResp container.StatsResponse
 			if err := decoder.Decode(&statsResp); err != nil {
-				return fmt.Errorf("failed to decode stats: %w", err)
+				errCh <- fmt.Errorf("failed to decode stats: %w", err)
+				return
+			}
+
+			stats := statsResp.Stats
+			cpu = stats.CPUStats.CPUUsage.TotalUsage
+			usage := stats.MemoryStats.Usage
+			if usage > peakMem {
+				peakMem = usage
 			}
 		}
 	}
