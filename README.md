@@ -10,44 +10,26 @@ Requirements:
 - Docker
 - [gVisor](https://gvisor.dev/docs/user_guide/install/)
 
-We want to able to use gvisor but give it a bit of slack so it able to use docker socket. Skip this step if you want to use Docker's default runtime.
-
-Copy `runsc-uds` to your`/etc/docker/daemon.json` and reload docker `sudo systemctl reload docker.service`.
-```json
-{
-    "runtimes": {
-        "runsc": {
-            "path": "/usr/local/bin/runsc"
-       },
-        "runsc-uds": {
-          "path": "/usr/local/bin/runsc",
-          "runtimeArgs": [
-            "--host-uds=open"
-        ]
-       }
-    }
-}
-```
+Kerat spawn another container, so it need host's docker socket and pulling runtime images.
 
 ```shell
 $ curl -sSL https://raw.githubusercontent.com/iklabib/Kerat/refs/heads/main/build.sh -o build.sh
 $ chmod +x build.sh
 $ ./build.sh pull
-$ docker run --runtime=runsc-uds -p 31415:31415 \
+$ docker run -p 31415:31415 \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -it kerat:engine
+    -it iklabib/kerat:engine
 ```
-or you want to build them yourself. It has amd64 and arm64 support.
+You can build the images yourself if you want to, with amd64 and arm64 support.
 
-```shell
+```bash
 $ git pull https://github.com/iklabib/Kerat.git
 $ cd Kerat
 $ ./build.sh all amd64 # or arm64
 ```
-If you don't have Linux machine and just want to test things out, remove `runtime` from `config.yaml` to fallback to Docker's default runtime.
 
 Request sample (not exactly user friendly, there is a reason for that).
-```shell
+```bash
 $ curl --request POST \
   --url http://127.0.0.1:31415/submit \
   --header 'content-type: application/json' \
@@ -72,14 +54,49 @@ $ curl --request POST \
 
 # output sample
 # {
-#   "message": "",
-#   "success": true,
-#   "output": [
-#     {
-#       "passed": true,
-#       "name": "test_addition",
-#       "stack_trace": ""
-#     }
-#   ]
+#  "success": true,
+#  "message": "",
+#  "output": [
+#    {
+#      "passed": false,
+#      "name": "test_addition",
+#      "message": "AssertionError: 4 != 2\n",
+#      "stack_trace": ""
+#    }
+#  ],
+#  "metrics": {
+#    "exit_code": 0,
+#    "wall_time": 0.63,
+#    "cpu_time": 35539000,
+#    "memory": 2375680
+#  }
 # }
+```
+
+## Running Kerat:engine with gVisor
+Kerat:engine is the container that compiles source codes and spawn container to run them. It need access to host's docker socket, this is blocked by default by gVisor. Here is how to get around the issue.
+
+Add `runsc-uds` lines to your `/etc/docker/daemon.json` and reload docker `sudo systemctl reload docker.service`.
+```bash
+{
+    "runtimes": {
+        "runsc": {
+            "path": "/usr/local/bin/runsc"
+       },
+        "runsc-uds": {
+          "path": "/usr/local/bin/runsc",
+          "runtimeArgs": [
+            "--host-uds=open"
+        ]
+       }
+    }
+} 
+```
+
+Now you can use `runsc-uds` as docker runtime.
+
+```bash
+$ docker run --runtime=runsc-uds -p 31415:31415 \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -it kerat:engine
 ```
