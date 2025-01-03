@@ -222,9 +222,10 @@ func (s *Server) HandleSubmission(w http.ResponseWriter, r *http.Request) {
 	case s.queue <- submissionId:
 		defer func() { <-s.queue }()
 
-		if submission.Type == "python" {
+		switch submission.Type {
+		case "python":
 			s.handleInterpretedSubmission(w, r, submission, submissionId)
-		} else {
+		case "csharp":
 			caches := memo.NewBoxCaches(s.config.CleanInterval)
 			s.handleCompiledSubmission(w, r, submission, submissionId, &caches)
 		}
