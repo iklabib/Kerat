@@ -158,6 +158,9 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 	}
 
 	// container should not running at this point
+	deadline, _ := timeoutCtx.Deadline()
+	wallTime := time.Since(deadline.Add(-time.Duration(timeout) * time.Second))
+
 	statCancel()
 
 	var stdout bytes.Buffer
@@ -177,9 +180,6 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 	}
 
 	res.Metrics = <-metricsCh
-	deadline, _ := timeoutCtx.Deadline()
-
-	wallTime := time.Since(deadline.Add(-time.Duration(timeout) * time.Second))
 	res.Metrics.WallTime = math.Round(wallTime.Seconds()*100) / 100
 
 	return res, nil
