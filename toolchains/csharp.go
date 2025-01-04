@@ -111,7 +111,7 @@ func (cs *Csharp) Build() (model.Build, error) {
 		return build, err
 	}
 
-	// we expect that failed build return 1 as exit code and fill stderr
+	// we expect that failed build return 1 as exit code and fill stdout
 	if !procState.Success() {
 		build := model.Build{Stderr: stderr.Bytes(), Stdout: stdout.Bytes()}
 		return build, nil

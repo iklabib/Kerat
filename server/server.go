@@ -151,10 +151,9 @@ func (s *Server) handleCompiledSubmission(w http.ResponseWriter, r *http.Request
 	}
 
 	if !build.Success {
-		log.Printf("[%s] build stderr: %s \n", submissionId, build.Stderr)
-		log.Printf("[%s] build stdout: %s \n", submissionId, build.Stdout)
-		result := SubmitResult{
-			Build: string(build.Stderr),
+		result := SubmissionResult{
+			Build: string(build.Stdout),
+			Tests: []container.TestResult{},
 		}
 		json.NewEncoder(w).Encode(result)
 		return
@@ -201,7 +200,7 @@ func (s *Server) handleCompiledSubmission(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result := SubmitResult{
+	result := SubmissionResult{
 		Success: ret.Success,
 		Tests:   ret.Output,
 		Metrics: ret.Metrics,

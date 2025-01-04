@@ -131,6 +131,7 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 	go e.monitorStat(statCtx, payload.ContainerId, metricsCh, monitorErrCh)
 	defer statCancel()
 
+	var exitCode int64 = 0
 	statusCh, errCh := e.client.ContainerWait(timeoutCtx, payload.ContainerId, container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done():
@@ -150,10 +151,9 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 		return res, fmt.Errorf("monitoring error: %w", err)
 
 	case containerStat := <-statusCh:
+		exitCode = containerStat.StatusCode
 		if containerStat.Error != nil {
 			return res, fmt.Errorf("container %s exited with status code %d error message: %s", payload.ContainerId[:8], containerStat.StatusCode, containerStat.Error.Message)
-		} else if containerStat.StatusCode != 0 {
-			return res, fmt.Errorf("container %s exited with status code %d", payload.ContainerId[:8], containerStat.StatusCode)
 		}
 	}
 
@@ -175,12 +175,22 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 		return res, fmt.Errorf("error reading container output: %w", err)
 	}
 
+	defer func() {
+		res.Metrics = <-metricsCh
+		res.Metrics.WallTime = math.Round(wallTime.Seconds()*100) / 100
+		res.Metrics.ExitCode = exitCode
+	}()
+
+	if exitCode != 0 {
+		res.Message = stderr.String()
+		res.Output = []TestResult{}
+
+		return res, nil
+	}
+
 	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
 		return res, fmt.Errorf("error deserialize output: %s", err.Error())
 	}
-
-	res.Metrics = <-metricsCh
-	res.Metrics.WallTime = math.Round(wallTime.Seconds()*100) / 100
 
 	return res, nil
 }
@@ -216,17 +226,10 @@ func (e *Engine) monitorStat(ctx context.Context, id string, metricsCh chan<- Me
 	var peakMem uint64 = 0
 
 	defer func() {
-		inspect, err := e.client.ContainerInspect(context.Background(), id)
-		if err != nil {
-			errCh <- fmt.Errorf("inspect error: %w", err)
-		}
-
 		metricsCh <- Metrics{
-			ExitCode: inspect.State.ExitCode,
-			CpuTime:  cpu,
-			Memory:   peakMem,
+			CpuTime: cpu,
+			Memory:  peakMem,
 		}
-
 	}()
 
 	for {

@@ -2,7 +2,7 @@ package server
 
 import "codeberg.org/iklabib/kerat/container"
 
-type SubmitResult struct {
+type SubmissionResult struct {
 	Success bool                   `json:"success"`
 	Build   string                 `json:"build"`
 	Tests   []container.TestResult `json:"tests"`

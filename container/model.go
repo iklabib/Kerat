@@ -28,7 +28,7 @@ type ContainerResult struct {
 }
 
 type Metrics struct {
-	ExitCode int     `json:"exit_code"`
+	ExitCode int64   `json:"exit_code"`
 	WallTime float64 `json:"wall_time"` // running wall time (s)
 	CpuTime  uint64  `json:"cpu_time"`  // total CPU time consumed (ns)
 	Memory   uint64  `json:"memory"`    // peak memory recorded (bytes)
