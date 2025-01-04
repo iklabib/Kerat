@@ -119,7 +119,14 @@ func (s *Server) handleInterpretedSubmission(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	json.NewEncoder(w).Encode(ret)
+	result := SubmissionResult{
+		Success: ret.Success,
+		Build:   ret.Message,
+		Tests:   ret.Output,
+		Metrics: ret.Metrics,
+	}
+
+	json.NewEncoder(w).Encode(result)
 }
 
 func (s *Server) handleCompiledSubmission(w http.ResponseWriter, r *http.Request, submission model.Submission, submissionId string, caches *memo.BoxCaches) {
