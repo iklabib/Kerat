@@ -6,16 +6,24 @@ import (
 	"os"
 
 	"codeberg.org/iklabib/kerat/server"
+	"codeberg.org/iklabib/kerat/util"
 )
 
 func main() {
-	server, err := server.NewServer("config.yaml")
+	config, err := util.LoadConfig("config.yaml")
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
 
+	processor, err := server.NewSubmissionProcessor(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	httpServer := server.NewHTTPServer(processor, config.QueueCap)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /submit", server.HandleSubmission)
+	mux.HandleFunc("POST /submit", httpServer.HandleSubmission)
 
 	address := ":31415"
 	if host := os.Getenv("KERAT_HOST"); host != "" {
