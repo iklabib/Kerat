@@ -2,6 +2,8 @@ FROM ubuntu:noble AS build
 WORKDIR /build
 ARG TARGETARCH
 ENV GO_VERSION="1.23.3"
+ENV GOOS="linux"
+ENV GOARCH=$TARGETARCH 
 ENV PATH="/usr/local/go/bin:$PATH"
 ADD https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz go.tar.gz
 RUN tar -xf go.tar.gz && rm -rf /usr/local/go && mv go /usr/local && rm go.tar.gz
