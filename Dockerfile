@@ -5,6 +5,8 @@ ENV GO_VERSION="1.23.3"
 ENV PATH="/usr/local/go/bin:$PATH"
 ADD https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz go.tar.gz
 RUN tar -xf go.tar.gz && rm -rf /usr/local/go && mv go /usr/local && rm go.tar.gz
+
+RUN apt update && apt install -y ca-certificates
 COPY . .
 RUN go build -o kerat cmd/kerat/main.go
 
