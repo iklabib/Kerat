@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"codeberg.org/iklabib/kerat/model"
@@ -159,7 +158,7 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 
 	// container should not running at this point
 	deadline, _ := timeoutCtx.Deadline()
-	wallTime := time.Since(deadline.Add(-time.Duration(timeout) * time.Second))
+	wallTime := time.Since(deadline.Add(-time.Duration(timeout) * time.Second)).Seconds()
 
 	statCancel()
 
@@ -175,15 +174,18 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 		return res, fmt.Errorf("error reading container output: %w", err)
 	}
 
-	defer func() {
-		res.Metrics = <-metricsCh
-		res.Metrics.WallTime = math.Round(wallTime.Seconds()*100) / 100
-		res.Metrics.ExitCode = exitCode
-	}()
+	getMetricts := func() Metrics {
+		metrics := <-metricsCh
+		metrics.ExitCode = exitCode
+		metrics.WallTime = wallTime
+
+		return metrics
+	}
 
 	if exitCode != 0 {
 		res.Message = stderr.String()
 		res.Output = []TestResult{}
+		res.Metrics = getMetricts()
 
 		return res, nil
 	}
@@ -192,6 +194,7 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 		return res, fmt.Errorf("error deserialize output: %s", err.Error())
 	}
 
+	res.Metrics = getMetricts()
 	return res, nil
 }
 
