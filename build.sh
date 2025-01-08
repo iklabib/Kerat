@@ -65,7 +65,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 push=false
-if [[ $# -gt 3 && "$3" == "--push" ]]; then
+if [[ $# -ge 3 && "$3" == "--push" ]]; then
     push=true
 fi
 
