@@ -2,12 +2,11 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
-	"net/http"
 
 	"codeberg.org/iklabib/kerat/model"
+	"github.com/labstack/echo/v4"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -25,55 +24,39 @@ func NewHTTPServer(processor *SubmissionProcessor, queueCap int) *HTTPServer {
 	}
 }
 
-func (s *HTTPServer) HandleSubmission(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	submission, submissionId, ok := s.decodeAndValidateSubmission(w, r)
-	if !ok {
-		return
-	}
-
-	select {
-	case s.queue <- submissionId:
-		defer func() { <-s.queue }()
-
-		result, err := s.processor.ProcessSubmission(r.Context(), submission, submissionId)
-		if err != nil {
-			log.Printf("[%s] processing error: %v\n", submissionId, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		json.NewEncoder(w).Encode(result)
-
-	case <-r.Context().Done():
-		s.handleContextCancellation(w, r, submissionId)
-	}
-}
-
-func (s *HTTPServer) decodeAndValidateSubmission(w http.ResponseWriter, r *http.Request) (model.Submission, string, bool) {
+func (s *HTTPServer) HandleSubmission(c echo.Context) error {
 	var submission model.Submission
-	if err := json.NewDecoder(r.Body).Decode(&submission); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return submission, "", false
+
+	if err := c.Bind(&submission); err != nil {
+		return c.JSON(400, "bad request")
 	}
 
 	submissionId, err := gonanoid.Generate(ALPHABET, 8)
 	if err != nil {
 		log.Printf("[error] failed to generate submission ID: %v\n", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return submission, "", false
+		return c.JSON(500, "internal server error")
 	}
 
-	return submission, submissionId, true
-}
+	ctx := c.Request().Context()
 
-func (s *HTTPServer) handleContextCancellation(w http.ResponseWriter, r *http.Request, submissionId string) {
-	if errors.Is(r.Context().Err(), context.Canceled) {
-		w.WriteHeader(499)
-		w.Write([]byte("request canceled"))
-	} else {
-		log.Printf("[%s] %s\n", submissionId, r.Context().Err().Error())
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+	select {
+	case s.queue <- submissionId:
+		defer func() { <-s.queue }()
+
+		result, err := s.processor.ProcessSubmission(ctx, submission, submissionId)
+		if err != nil {
+			log.Printf("[%s] processing error: %v\n", submissionId, err)
+			return c.JSON(500, "internal server error")
+		}
+
+		return c.JSON(200, result)
+
+	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return c.JSON(499, "request canceled")
+		} else {
+			log.Printf("[%s] %s\n", submissionId, ctx.Err().Error())
+			return c.JSON(500, "internal server error")
+		}
 	}
 }
