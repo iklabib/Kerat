@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"codeberg.org/iklabib/kerat/model"
-	"codeberg.org/iklabib/kerat/util"
+	"codeberg.org/iklabib/kerat/processor/types"
+	"codeberg.org/iklabib/kerat/processor/util"
 )
 
 type Csharp struct {
@@ -18,11 +18,11 @@ type Csharp struct {
 	binPath  string
 	template string
 	workdir  string
-	src      []model.SourceFile
-	srcTest  []model.SourceFile
+	src      []types.SourceFile
+	srcTest  []types.SourceFile
 }
 
-func NewCsharp(submission model.Submission, repository string) (*Csharp, error) {
+func NewCsharp(submission types.Submission, repository string) (*Csharp, error) {
 	binPath, err := exec.LookPath("dotnet")
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (cs *Csharp) Prep() error {
 	return nil
 }
 
-func (cs *Csharp) Build() (model.Build, error) {
+func (cs *Csharp) Build() (types.Build, error) {
 	defer cs.cleanSources()
 
 	stderr := bytes.Buffer{}
@@ -89,7 +89,7 @@ func (cs *Csharp) Build() (model.Build, error) {
 	cmd.Stdout = &stdout
 
 	if err := cmd.Start(); err != nil {
-		build := model.Build{Stderr: stderr.Bytes()}
+		build := types.Build{Stderr: stderr.Bytes()}
 		return build, fmt.Errorf("error to start c# build")
 	}
 
@@ -107,19 +107,19 @@ func (cs *Csharp) Build() (model.Build, error) {
 			err = fmt.Errorf("c# compiler stopped working signaled %s", wt.Signal().String())
 		}
 
-		build := model.Build{Stderr: stderr.Bytes()}
+		build := types.Build{Stderr: stderr.Bytes()}
 		return build, err
 	}
 
 	// we expect that failed build return 1 as exit code and fill stdout
 	if !procState.Success() {
-		build := model.Build{Stderr: stderr.Bytes(), Stdout: stdout.Bytes()}
+		build := types.Build{Stderr: stderr.Bytes(), Stdout: stdout.Bytes()}
 		return build, nil
 	}
 
 	binName := "box"
 	binPath := filepath.Join(cs.workdir, "output", binName)
-	build := model.Build{
+	build := types.Build{
 		Success: true,
 		BinPath: binPath,
 	}

@@ -7,18 +7,19 @@ import (
 	"log"
 	"net/http"
 
-	"codeberg.org/iklabib/kerat/model"
+	"codeberg.org/iklabib/kerat/processor"
+	"codeberg.org/iklabib/kerat/processor/types"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 var ALPHABET string = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 type HTTPServer struct {
-	processor *SubmissionProcessor
+	processor *processor.SubmissionProcessor
 	queue     chan string
 }
 
-func NewHTTPServer(processor *SubmissionProcessor, queueCap int) *HTTPServer {
+func NewHTTPServer(processor *processor.SubmissionProcessor, queueCap int) *HTTPServer {
 	return &HTTPServer{
 		processor: processor,
 		queue:     make(chan string, queueCap),
@@ -51,8 +52,8 @@ func (s *HTTPServer) HandleSubmission(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *HTTPServer) decodeAndValidateSubmission(w http.ResponseWriter, r *http.Request) (model.Submission, string, bool) {
-	var submission model.Submission
+func (s *HTTPServer) decodeAndValidateSubmission(w http.ResponseWriter, r *http.Request) (types.Submission, string, bool) {
+	var submission types.Submission
 	if err := json.NewDecoder(r.Body).Decode(&submission); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return submission, "", false

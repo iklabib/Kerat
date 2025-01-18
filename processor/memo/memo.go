@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"codeberg.org/iklabib/kerat/toolchains"
+	"codeberg.org/iklabib/kerat/processor/toolchains"
 )
 
 type BoxCaches struct {

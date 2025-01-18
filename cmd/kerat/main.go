@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"os"
 
+	"codeberg.org/iklabib/kerat/processor"
+	"codeberg.org/iklabib/kerat/processor/util"
 	"codeberg.org/iklabib/kerat/server"
-	"codeberg.org/iklabib/kerat/util"
 )
 
 func main() {
@@ -15,7 +16,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	processor, err := server.NewSubmissionProcessor(config)
+	processor, err := processor.NewSubmissionProcessor(config)
 	if err != nil {
 		log.Fatal(err)
 	}

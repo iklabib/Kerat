@@ -9,17 +9,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"codeberg.org/iklabib/kerat/model"
+	"codeberg.org/iklabib/kerat/processor/types"
 	"github.com/goccy/go-yaml"
 )
 
-func LoadConfig(configPath string) (*model.Config, error) {
+func LoadConfig(configPath string) (*types.Config, error) {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var config model.Config
+	var config types.Config
 	if err := yaml.Unmarshal(content, &config); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func IsNotExist(dir string) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
 
-func TarSources(files model.SourceCode) (bytes.Buffer, error) {
+func TarSources(files types.SourceCode) (bytes.Buffer, error) {
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 	defer tw.Close()

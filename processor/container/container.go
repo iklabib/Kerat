@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"codeberg.org/iklabib/kerat/model"
+	"codeberg.org/iklabib/kerat/processor/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-units"
@@ -18,10 +18,10 @@ type Engine struct {
 	client            *client.Client
 	runtime           string
 	hostConfigs       map[string]container.HostConfig
-	submissionConfigs map[string]model.SubmissionConfig
+	submissionConfigs map[string]types.SubmissionConfig
 }
 
-func NewEngine(config model.Config) (*Engine, error) {
+func NewEngine(config types.Config) (*Engine, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("failed start container engine")
@@ -35,7 +35,7 @@ func NewEngine(config model.Config) (*Engine, error) {
 		client:            cli,
 		runtime:           config.Runtime,
 		hostConfigs:       make(map[string]container.HostConfig),
-		submissionConfigs: make(map[string]model.SubmissionConfig),
+		submissionConfigs: make(map[string]types.SubmissionConfig),
 	}
 
 	for _, v := range config.SubmissionConfigs {
@@ -109,22 +109,22 @@ func (e *Engine) Create(ctx context.Context, subType string) (string, error) {
 	return resp.ID, nil
 }
 
-func (e *Engine) Copy(ctx context.Context, payload CopyPayload) error {
+func (e *Engine) Copy(ctx context.Context, payload types.CopyPayload) error {
 	opt := container.CopyToContainerOptions{}
 	return e.client.CopyToContainer(ctx, payload.ContainerId, payload.Dest, payload.Content, opt)
 }
 
-func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, error) {
+func (e *Engine) Run(ctx context.Context, payload types.RunPayload) (types.ContainerResult, error) {
 	timeout := e.submissionConfigs[payload.SubmissionType].Timeout
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer timeoutCancel()
 
-	var res ContainerResult
+	var res types.ContainerResult
 	if err := e.client.ContainerStart(ctx, payload.ContainerId, container.StartOptions{}); err != nil {
 		return res, fmt.Errorf("error start container: %w", err)
 	}
 
-	metricsCh := make(chan Metrics, 1)
+	metricsCh := make(chan types.Metrics, 1)
 	monitorErrCh := make(chan error, 1)
 	statCtx, statCancel := context.WithCancel(ctx)
 	go e.monitorStat(statCtx, payload.ContainerId, metricsCh, monitorErrCh)
@@ -174,7 +174,7 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 		return res, fmt.Errorf("error reading container output: %w", err)
 	}
 
-	getMetricts := func() Metrics {
+	getMetricts := func() types.Metrics {
 		metrics := <-metricsCh
 		metrics.ExitCode = exitCode
 		metrics.WallTime = wallTime
@@ -184,7 +184,7 @@ func (e *Engine) Run(ctx context.Context, payload RunPayload) (ContainerResult, 
 
 	if exitCode != 0 {
 		res.Message = stderr.String()
-		res.Output = []TestResult{}
+		res.Output = []types.TestResult{}
 		res.Metrics = getMetricts()
 
 		return res, nil
@@ -213,7 +213,7 @@ func (e *Engine) Stat(id string) (container.Stats, error) {
 	return statsResp.Stats, err
 }
 
-func (e *Engine) monitorStat(ctx context.Context, id string, metricsCh chan<- Metrics, errCh chan<- error) {
+func (e *Engine) monitorStat(ctx context.Context, id string, metricsCh chan<- types.Metrics, errCh chan<- error) {
 	defer close(metricsCh)
 
 	res, err := e.client.ContainerStats(ctx, id, true)
@@ -229,7 +229,7 @@ func (e *Engine) monitorStat(ctx context.Context, id string, metricsCh chan<- Me
 	var peakMem uint64 = 0
 
 	defer func() {
-		metricsCh <- Metrics{
+		metricsCh <- types.Metrics{
 			CpuTime: cpu,
 			Memory:  peakMem,
 		}
