@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"codeberg.org/iklabib/kerat/processor/types"
-	"codeberg.org/iklabib/kerat/processor/util"
+	"codeberg.org/iklabib/kerat/util"
 )
 
 type Csharp struct {

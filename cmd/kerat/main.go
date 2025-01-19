@@ -6,12 +6,11 @@ import (
 	"os"
 
 	"codeberg.org/iklabib/kerat/processor"
-	"codeberg.org/iklabib/kerat/processor/util"
 	"codeberg.org/iklabib/kerat/server"
 )
 
 func main() {
-	config, err := util.LoadConfig("config.yaml")
+	config, err := processor.LoadConfig("config.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}

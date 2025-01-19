@@ -9,7 +9,6 @@ import (
 	"codeberg.org/iklabib/kerat/processor/memo"
 	"codeberg.org/iklabib/kerat/processor/toolchains"
 	"codeberg.org/iklabib/kerat/processor/types"
-	"codeberg.org/iklabib/kerat/processor/util"
 )
 
 type SubmissionProcessor struct {
@@ -58,7 +57,7 @@ func (p *SubmissionProcessor) processInterpretedSubmission(ctx context.Context, 
 		go p.engine.Remove(containerId)
 	}()
 
-	content, err := util.TarSources(submission.Source)
+	content, err := TarSources(submission.Source)
 	if err != nil {
 		return types.SubmissionResult{}, fmt.Errorf("creating tar error: %v", err)
 	}
@@ -125,7 +124,7 @@ func (p *SubmissionProcessor) processCompiledSubmission(ctx context.Context, sub
 		go p.engine.Remove(containerId)
 	}()
 
-	content, err := util.TarBinary("box", bin)
+	content, err := TarBinary("box", bin)
 	if err != nil {
 		return types.SubmissionResult{}, fmt.Errorf("creating tar error: %v", err)
 	}

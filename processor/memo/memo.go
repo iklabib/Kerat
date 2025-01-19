@@ -11,7 +11,7 @@ import (
 type BoxCaches struct {
 	intervarl int
 	mu        sync.Mutex
-	timers    map[string]time.Timer
+	timers    map[string]*time.Timer
 	exercises map[string]toolchains.Toolchain
 }
 
@@ -19,23 +19,23 @@ func NewBoxCaches(interval int) BoxCaches {
 	return BoxCaches{
 		intervarl: interval,
 		mu:        sync.Mutex{},
-		timers:    make(map[string]time.Timer),
+		timers:    make(map[string]*time.Timer),
 		exercises: make(map[string]toolchains.Toolchain),
 	}
 }
 
 func (b *BoxCaches) LoadToolchain(id string) (toolchains.Toolchain, bool) {
 	b.mu.Lock()
-
 	tc, ok := b.exercises[id]
-	if timer, exists := b.timers[id]; exists {
-		timer.Stop()
-		intervalTime := time.Duration(b.intervarl) * time.Minute
-		timer = *time.NewTimer(intervalTime)
+	if existingTimer, exists := b.timers[id]; exists {
+		existingTimer.Stop()
+		delete(b.timers, id)
 	}
 	b.mu.Unlock()
-	b.timers[id] = *b.CleanTimer(id)
 
+	if ok {
+		b.timers[id] = b.CleanTimer(id)
+	}
 	return tc, ok
 }
 
@@ -44,7 +44,7 @@ func (b *BoxCaches) AddToolchain(id string, tc toolchains.Toolchain) {
 	defer b.mu.Unlock()
 
 	b.exercises[id] = tc
-	b.timers[id] = *b.CleanTimer(id)
+	b.timers[id] = b.CleanTimer(id)
 }
 
 func (b *BoxCaches) CleanTimer(id string) *time.Timer {
