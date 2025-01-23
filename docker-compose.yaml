@@ -1,0 +1,30 @@
+services: 
+  engine:
+    image: "iklabib/kerat:engine"
+    container_name: "kerat_engine"
+    volumes: 
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: 
+      - localnet
+    expose:
+      - "31415"
+    restart: always
+
+  nginx:
+    image: "nginx:1.27"
+    container_name: "kerat_nginx"
+    volumes: 
+      - ./configs/nginx:/etc/nginx/conf.d/
+    networks: 
+      - localnet
+    expose:
+      - "80"
+    ports: 
+      - "8080:80"
+    depends_on:
+      - engine
+    restart: always
+
+networks: 
+  localnet:
+    driver: bridge
