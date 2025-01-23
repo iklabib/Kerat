@@ -1,5 +1,4 @@
 FROM alpine:3.20
-WORKDIR /workspace
 RUN apk add --no-cache icu-libs
-COPY containerfiles/entry.sh .
-ENTRYPOINT [ "sh", "/workspace/entry.sh" ]
+WORKDIR /workspace
+ENTRYPOINT [ "sh", "chmod", "+x", "/workspace/box", "&&", "/workspace/box"]
