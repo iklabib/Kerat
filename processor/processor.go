@@ -48,9 +48,11 @@ func (p *SubmissionProcessor) ProcessSubmission(ctx context.Context, submission 
 }
 
 func (p *SubmissionProcessor) processInterpretedSubmission(ctx context.Context, submission types.Submission) (types.SubmissionResult, error) {
+	result := types.SubmissionResult{}
+
 	containerId, err := p.engine.Create(context.Background(), submission.Type)
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("container creation error: %v", err)
+		return result, fmt.Errorf("container creation error: %v", err)
 	}
 
 	defer func() {
@@ -59,65 +61,67 @@ func (p *SubmissionProcessor) processInterpretedSubmission(ctx context.Context, 
 
 	content, err := TarSources(submission.Source)
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("creating tar error: %v", err)
+		return result, fmt.Errorf("creating tar error: %v", err)
 	}
 
 	copyPayload := types.CopyPayload{ContainerId: containerId, Dest: "/workspace", Content: &content}
 	if err := p.engine.Copy(context.Background(), copyPayload); err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("copying tar error: %v", err)
+		return result, fmt.Errorf("copying tar error: %v", err)
 	}
 
 	ret, err := p.engine.Run(ctx, types.RunPayload{ContainerId: containerId, SubmissionType: submission.Type})
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("run error: %v", err)
+		return result, fmt.Errorf("run error: %v", err)
 	}
 
-	return types.SubmissionResult{
-		Success: ret.Success,
-		Build:   ret.Message,
-		Tests:   ret.Output,
-		Metrics: ret.Metrics,
-	}, nil
+	result.Success = ret.Success
+	result.Build = ret.Message
+	result.Tests = ret.Output
+	result.Metrics = ret.Metrics
+
+	return result, nil
 }
 
 func (p *SubmissionProcessor) processCompiledSubmission(ctx context.Context, submission types.Submission) (types.SubmissionResult, error) {
 	caches := memo.NewBoxCaches(p.config.CleanInterval)
 	exerciseId := submission.ExerciseId
 
+	result := types.SubmissionResult{}
+
 	tc, ok := caches.LoadToolchain(exerciseId)
 	if !ok {
 		var err error
 		tc, err = toolchains.NewToolchain(submission, p.config.Repository)
 		if err != nil {
-			return types.SubmissionResult{}, fmt.Errorf("failed to create toolchain: %v", err)
+			return result, fmt.Errorf("failed to create toolchain: %v", err)
 		}
 		caches.AddToolchain(exerciseId, tc)
 	}
 
 	if err := tc.Prep(); err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("prep error: %v", err)
+		return result, fmt.Errorf("prep error: %v", err)
 	}
 
 	build, err := tc.Build()
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("build error: %v", err)
+		return result, fmt.Errorf("build error: %v", err)
 	}
 
 	if !build.Success {
-		return types.SubmissionResult{
-			Build: string(build.Stdout),
-			Tests: []types.TestResult{},
-		}, nil
+		result.Build = string(build.Stdout)
+		result.Tests = []types.TestResult{}
+
+		return result, nil
 	}
 
 	bin, err := os.ReadFile(build.BinPath)
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("failed to read binary: %v", err)
+		return result, fmt.Errorf("failed to read binary: %v", err)
 	}
 
 	containerId, err := p.engine.Create(context.Background(), submission.Type)
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("container creation error: %v", err)
+		return result, fmt.Errorf("container creation error: %v", err)
 	}
 
 	defer func() {
@@ -126,22 +130,22 @@ func (p *SubmissionProcessor) processCompiledSubmission(ctx context.Context, sub
 
 	content, err := TarBinary("box", bin)
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("creating tar error: %v", err)
+		return result, fmt.Errorf("creating tar error: %v", err)
 	}
 
 	copyPayload := types.CopyPayload{ContainerId: containerId, Dest: "/workspace", Content: &content}
 	if err := p.engine.Copy(context.Background(), copyPayload); err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("copying tar error: %v", err)
+		return result, fmt.Errorf("copying tar error: %v", err)
 	}
 
 	ret, err := p.engine.Run(ctx, types.RunPayload{ContainerId: containerId, SubmissionType: submission.Type})
 	if err != nil {
-		return types.SubmissionResult{}, fmt.Errorf("runtime error: %v", err)
+		return result, fmt.Errorf("runtime error: %v", err)
 	}
 
-	return types.SubmissionResult{
-		Success: ret.Success,
-		Tests:   ret.Output,
-		Metrics: ret.Metrics,
-	}, nil
+	result.Success = ret.Success
+	result.Tests = ret.Output
+	result.Metrics = ret.Metrics
+
+	return result, nil
 }
