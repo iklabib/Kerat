@@ -1,5 +1,5 @@
 engine: docker
-runtime: runc
+runtime: runsc
 queue_cap: 24 # maximum conccurent jobs
 clean_interval: 45 # minutes
 repository: "/repository"
@@ -11,7 +11,9 @@ submission_configs:
     max_swap: 0
     max_memory: 64
     timeout: 25 
-    container_image: iklabib/kerat:box-alpine
+    container_image: iklabib/kerat:dotnet
+    # override container entry point
+    entry_point: ["/workspace/box"]
 
   - id: python
     cpu_period: 100000
@@ -21,3 +23,4 @@ submission_configs:
     max_memory: 64
     timeout: 25
     container_image: iklabib/kerat:python
+    entry_point: ["python3", "/kerat/main.py" ]
