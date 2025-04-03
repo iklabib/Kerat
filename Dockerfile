@@ -1,7 +1,7 @@
 FROM ubuntu:noble AS build
 WORKDIR /build
 ARG TARGETARCH
-ENV GO_VERSION="1.23.3"
+ENV GO_VERSION="1.24.2"
 ENV GOOS="linux"
 ENV GOARCH=$TARGETARCH 
 ENV PATH="/usr/local/go/bin:$PATH"
