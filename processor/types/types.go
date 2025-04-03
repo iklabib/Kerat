@@ -12,6 +12,7 @@ type SubmissionConfig struct {
 	Timeout        int              `json:"timeout" yaml:"timeout"`       // wall-time in seconds
 	Ulimits        map[string]int64 `json:"ulimits" yaml:"ulimits"`
 	ContainerImage string           `json:"container_image" yaml:"container_image"`
+	EntryPoint     []string         `json:"entry_point" yaml:"entry_point"`
 }
 
 type Config struct {

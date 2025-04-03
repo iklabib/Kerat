@@ -94,11 +94,16 @@ func (e *Engine) Create(ctx context.Context, subType string) (string, error) {
 	submissionConfig := e.submissionConfigs[subType]
 	hostConfig := e.hostConfigs[subType]
 
-	var containerConfig = container.Config{
+	containerConfig := container.Config{
 		Hostname:        "box",
 		Domainname:      "box",
 		NetworkDisabled: true,
 		Image:           submissionConfig.ContainerImage,
+	}
+
+	entryPoint := submissionConfig.EntryPoint
+	if len(entryPoint) > 0 {
+		containerConfig.Entrypoint = entryPoint
 	}
 
 	resp, err := e.client.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil, nil, "")
