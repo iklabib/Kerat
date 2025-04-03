@@ -31,11 +31,12 @@ func (b *BoxCaches) LoadToolchain(id string) (toolchains.Toolchain, bool) {
 		existingTimer.Stop()
 		delete(b.timers, id)
 	}
-	b.mu.Unlock()
+	defer b.mu.Unlock()
 
 	if ok {
 		b.timers[id] = b.CleanTimer(id)
 	}
+
 	return tc, ok
 }
 
