@@ -34,43 +34,43 @@ $ curl --request POST \
   --url http://127.0.0.1:31415/submit \
   --header 'content-type: application/json' \
   --data '{
-  	"exercise_id": "dummy",
-  	"type": "python",
-  	"source": {
-      "src_test": [
-          {
-              "filename": "test_example.py",
-              "src": "import unittest\n\nclass TestExample(unittest.TestCase):\n    def test_addition(self):\n        self.assertEqual(1+1, 2)"
-          }
-      ],
-      "src": [
-          {
-              "filename": "example.py",
-              "src": "def add(a, b):\n    return a + b"
-          }
-      ]
-    }
+  "exercise_id": "dummy",
+  "subtype": "python",
+  "source": {
+    "src_test": [
+      {
+        "filename": "test_example.py",
+        "src": "from example import add\nimport unittest\n\nclass TestExample(unittest.TestCase):\n    def test_addition(self):\n        self.assertEqual(add(1,1), 2)"
+      }
+    ],
+    "src": [
+      {
+        "filename": "example.py",
+        "src": "def add(a, b):\n    return a + b"
+      }
+    ]
+  }
 }'
 
 # output sample
-# {
+#{
 #  "success": true,
-#  "message": "",
-#  "output": [
+#  "build": "",
+#  "tests": [
 #    {
-#      "passed": false,
+#      "passed": true,
 #      "name": "test_addition",
-#      "message": "AssertionError: 4 != 2\n",
+#      "message": "",
 #      "stack_trace": ""
 #    }
 #  ],
 #  "metrics": {
 #    "exit_code": 0,
-#    "wall_time": 0.63,
-#    "cpu_time": 35539000,
-#    "memory": 2375680
+#    "wall_time": 0.6828688,
+#    "cpu_time": 127178000,
+#    "memory": 16707584
 #  }
-# }
+#}
 ```
 
 ## Running Kerat:engine with gVisor
