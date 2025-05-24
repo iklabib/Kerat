@@ -53,7 +53,7 @@ $ curl --request POST \
 }'
 
 # output sample
-#{
+# {
 #  "success": true,
 #  "build": "",
 #  "tests": [
@@ -70,11 +70,11 @@ $ curl --request POST \
 #    "cpu_time": 127178000,
 #    "memory": 16707584
 #  }
-#}
+# }
 ```
 
-## Running Kerat:engine with gVisor
-Kerat:engine is the container that compiles source codes and spawn container to run them. It need access to host's docker socket, this is blocked by default by gVisor. Here is how to get around the issue.
+## Running the engine with gVisor
+`iklabib/kerat:engine` is the container that compiles source codes and spawn container to run them. It need access to host's docker socket, this is blocked by default by gVisor. Here is how to get around the issue.
 
 Add `runsc-uds` lines to your `/etc/docker/daemon.json` and reload docker `sudo systemctl reload docker.service`.
 ```bash
