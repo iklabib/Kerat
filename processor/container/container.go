@@ -60,6 +60,9 @@ func (e *Engine) buildHostConfig(subType string) container.HostConfig {
 		AutoRemove: false,
 		Resources:  resources,
 		Runtime:    e.runtime,
+		SecurityOpt: []string{
+			"no-new-privileges:true",
+		},
 	}
 
 	// posible values
