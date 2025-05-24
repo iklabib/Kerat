@@ -1,6 +1,6 @@
-FROM python:3.13-alpine3.20
+FROM gcr.io/distroless/python3-debian12:nonroot
 
 WORKDIR /kerat
 COPY template/python .
-RUN mkdir -p /workspace
+WORKDIR /workspace
 ENTRYPOINT ["python3", "/kerat/main.py" ]

@@ -1,12 +1,8 @@
-FROM ubuntu:noble AS build
+FROM golang:1.24-bookworm AS build
 WORKDIR /build
 ARG TARGETARCH
-ENV GO_VERSION="1.24.2"
 ENV GOOS="linux"
 ENV GOARCH=$TARGETARCH 
-ENV PATH="/usr/local/go/bin:$PATH"
-ADD https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz go.tar.gz
-RUN tar -xf go.tar.gz && rm -rf /usr/local/go && mv go /usr/local && rm go.tar.gz
 
 RUN apt update && apt install -y ca-certificates
 COPY ["go.sum", "go.mod", "./"]
@@ -15,8 +11,9 @@ RUN go mod download
 COPY . .
 RUN go build -o kerat cmd/kerat/main.go
 
-FROM ubuntu:noble AS final
-RUN apt update && apt install -y musl-dev libicu74 libicu-dev git curl aria2
+FROM debian:bookworm-slim AS final
+# RUN apt update && apt install -y musl-dev libicu74 libicu-dev git curl aria2
+RUN apt update && apt install -y libicu72 git curl aria2
 ARG TARGETARCH
 
 # copy templates
