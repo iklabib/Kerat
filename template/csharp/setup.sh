@@ -22,10 +22,6 @@ rm "$TARBALL"
 # Update PATH for the current script
 export PATH="$DOTNET_DIR:$PATH"
 
-# Prepare project files
-mv "$SCRIPT_DIR/box.txt" "$SCRIPT_DIR/box.csproj"
-mv "$SCRIPT_DIR/Program.txt" "$SCRIPT_DIR/Main.cs"
-
 # Restore and publish the .NET project
 dotnet restore "$SCRIPT_DIR/box.csproj"
 dotnet publish -o "$SCRIPT_DIR/output" "$SCRIPT_DIR/box.csproj"
